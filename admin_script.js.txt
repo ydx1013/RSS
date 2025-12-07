@@ -63,7 +63,7 @@ const API_BASE = '/api/routes';
         function renderList() {
             const listEl = document.getElementById('routeList');
             listEl.innerHTML = '';
-            listEl.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4'; // Change to grid
+            listEl.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 p-4'; // Change to grid
             
             const keys = Object.keys(cachedRoutes).reverse(); // Reverse order
             if (keys.length === 0) {
