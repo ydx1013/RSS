@@ -12,13 +12,11 @@ const API_BASE = '/api/routes';
             // 更新导航按钮状态
             document.querySelectorAll('.nav-btn').forEach(el => {
                 if (el.dataset.target === pageId) {
-                    el.classList.add('active');
-                    el.classList.remove('text-gray-900', 'font-medium');
-                    el.classList.add('text-white');
+                    el.classList.add('active', 'bg-blue-600', 'text-white');
+                    el.classList.remove('text-gray-900', 'font-medium', 'hover:bg-gray-100');
                 } else {
-                    el.classList.remove('active');
-                    el.classList.remove('text-white');
-                    el.classList.add('text-gray-900', 'font-medium');
+                    el.classList.remove('active', 'bg-blue-600', 'text-white');
+                    el.classList.add('text-gray-900', 'font-medium', 'hover:bg-gray-100');
                 }
             });
 
