@@ -1,0 +1,2 @@
+npx wrangler@latest deploy
+npx wrangler@latest dev
