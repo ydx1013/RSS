@@ -1,12 +1,25 @@
+
 import * as cheerio from "cheerio"
 import { itemsToRss } from "../rss.js"
 import { DateTime } from "luxon"
 
-export default async function (params) {
-    const { param: ID, format, maxItems } = params;
+export default async function (params, config) {
+    const { format, maxItems } = params;
+    const { url } = config;
+
     try {
-        if (!ID) {
-            throw new Error("缺少 Telegram channel/group ID");
+        if (!url) {
+            throw new Error("缺少 Telegram URL");
+        }
+
+        // 从 URL 中提取 ID
+        let ID = url;
+        // 如果是完整URL，尝试提取ID
+        if (url.includes('t.me/')) {
+            const match = url.match(/t\.me\/(?:s\/)?([^\/\?]+)/);
+            if (match) {
+                ID = match[1];
+            }
         }
 
         // 检测 Telegram ID 类型并构建正确的 URL
@@ -23,13 +36,21 @@ export default async function (params) {
             contentType = 'group';
         } else {
             // 频道或机器人格式: 频道名或机器人名
-            telegramUrl = `https://t.me/s/${ID}`;
+            // 移除可能存在的 @ 前缀
+            const cleanID = ID.replace(/^@/, '');
+            telegramUrl = `https://t.me/s/${cleanID}`;
             contentType = 'channel';
+            ID = cleanID; // Update ID for later use
         }
 
         console.log(`Telegram URL: ${telegramUrl}, Type: ${contentType}`);
 
-        const resp = await fetch(telegramUrl);
+        const resp = await fetch(telegramUrl, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
+            },
+        });
+
         if (!resp.ok) {
             throw new Error(`获取 Telegram ${contentType} 失败: ${resp.status} ${resp.statusText}`);
         }
@@ -69,11 +90,10 @@ export default async function (params) {
         const elementsToProcess = elements.slice(0, maxItems);
 
         for (const el of elementsToProcess) {
-            console.log(`Processing message element ${elementsToProcess.indexOf(el) + 1}/${elementsToProcess.length}`);
             const link = $(el).find("a.tgme_widget_message_date").attr("href") || "";
             const author = $(el).find(".tgme_widget_message_owner_name").text().trim() || "";
             const datetime = $(el).find("time").attr("datetime") || "";
-            const rssTime = datetime ? DateTime.fromISO(datetime, { zone: "utc" }).toRFC2822() : "";
+            const rssTime = datetime ? DateTime.fromISO(datetime, { zone: "utc" }).toRFC2822() : new Date().toUTCString();
 
             // 获取消息文本元素
             const textElement = $(el).find(".tgme_widget_message_text");
@@ -165,11 +185,12 @@ export default async function (params) {
                 contentParts.push(`<br><video controls style="max-width: 100%; height: auto;"><source src="${video}" type="video/mp4" /></video>`);
             }
 
-            const content = `<![CDATA[${contentParts.join('')}]]>`;
+            // FIX: Do NOT wrap in CDATA here, as itemsToRss handles it.
+            const content = contentParts.join('');
 
             // 确定enclosure（优先级：图片 > 视频 > 默认logo）
-            let enclosureUrl = "https://telegram.org/img/t_logo.png";
-            let enclosureType = "image/png";
+            let enclosureUrl = "";
+            let enclosureType = "";
             
             if (photoUrl) {
                 enclosureUrl = photoUrl;
@@ -179,19 +200,24 @@ export default async function (params) {
                 enclosureType = "video/mp4";
             }
 
-            items.push({
+            const item = {
                 title: itemTitle,
                 link: link,
                 description: content,
                 author: author,
                 guid: link,
-                pubDate: rssTime,
-                enclosure: {
+                pubDate: rssTime
+            };
+
+            if (enclosureUrl) {
+                item.enclosure = {
                     url: enclosureUrl,
                     length: "0",
                     type: enclosureType
-                }
-            });
+                };
+            }
+
+            items.push(item);
         }
 
         const channel = {
@@ -203,26 +229,20 @@ export default async function (params) {
 
         return {
             data: itemsToRss(items, channel, format),
+            items: items,
             isError: items.length === 0
         };
     } catch (error) {
         console.error(`Telegram processor error: ${error.message}`, error);
         // 确定正确的链接格式
-        let errorLink;
-        if (ID.startsWith('+')) {
-            errorLink = `https://t.me/${ID}`;
-        } else if (ID.startsWith('joinchat/')) {
-            errorLink = `https://t.me/${ID}`;
-        } else {
-            errorLink = `https://t.me/s/${ID}`;
-        }
+        let errorLink = url || 'https://telegram.org';
 
         const items = [{
             title: 'Telegram Processor Error',
             link: errorLink,
             description: `Error processing Telegram feed: ${error.message}`,
             author: "RSS Worker",
-            guid: `tg-error-${ID}-${Date.now()}`,
+            guid: `tg-error-${Date.now()}`,
             pubDate: new Date().toUTCString(),
         }];
         const channel = {
@@ -233,8 +253,8 @@ export default async function (params) {
         };
         return {
             data: itemsToRss(items, channel, format),
+            items: items,
             isError: true,
         };
     }
 }
-
