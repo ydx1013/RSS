@@ -63,11 +63,6 @@ export const cacheConfig = {
             error: 300,    // 5 分钟后重试错误
             maxItems: 1,   // 单一稿件状态，只需要一条
         },
-        custom: {
-            success: 3600, // 1 小时 - 自定义 RSS 默认缓存
-            error: 600,    // 10 分钟 - 错误时快速重试
-            maxItems: 30,  // 自定义 RSS 默认返回 30 条
-        },
         
         // fellatiojapan 和 helixlife 等未配置的路由将使用上面的 default 设置
     }

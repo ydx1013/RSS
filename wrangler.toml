@@ -5,15 +5,4 @@ compatibility_date = "2025-03-12"
 [observability.logs]
 enabled = true
 
-# KV 命名空间配置 - 用于存储订阅和缓存元数据
-[[kv_namespaces]]
-binding = "RSS_KV"
-id = "7573d0888204498baf9f91106b95ccf2"
-
-# 环境变量配置 - 管理员认证
-[vars]
-ADMIN_TOKEN = "rss_admin_2025"      # Bearer Token 认证
-ADMIN_USERNAME = "admin"             # Basic Auth 用户名
-ADMIN_PASSWORD = "WorkerRSS@2025"    # Basic Auth 密码
-
 

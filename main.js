@@ -14,12 +14,9 @@ import _10jqka from "./routers/10jqka.js"
 import iqnew from "./routers/iqnew.js"
 import bilibili from "./routers/bilibili.js"
 import tracker from "./routers/tracker.js"
-import custom from "./routers/custom.js"
 import { cacheConfig } from "./config.js"
-import { handleAdminRequest } from "./admin/router.js"
-import { recordCacheMetadata } from "./admin/cache.js"
 
-const funcs = { iqnew, dlsite, github, kemono, cospuri, fellatiojapan, javbus, telegram, researchgate, cctv, helixlife, hhkaobo, gushiyaowan, bilibili, tracker, custom, "10jqka": _10jqka }
+const funcs = { iqnew, dlsite, github, kemono, cospuri, fellatiojapan, javbus, telegram, researchgate, cctv, helixlife, hhkaobo, gushiyaowan, bilibili, tracker, "10jqka": _10jqka }
 
 export default {
     async fetch(request, env) {
@@ -27,11 +24,6 @@ export default {
         console.log("UA:", request.headers.get("User-Agent") || "无UA")
 
         const url = new URL(request.url)
-
-        // 检查是否是管理后台请求
-        if (url.pathname.startsWith('/admin')) {
-            return handleAdminRequest(request, env)
-        }
 
         const paramName = Array.from(url.searchParams.keys())[0]
         const paramValue = url.searchParams.get(paramName)
@@ -128,7 +120,6 @@ export default {
             workerUrl: new URL(request.url).origin,
             format: format,
             maxItems: routeConfig.maxItems || cacheConfig.default.maxItems, // 优先用路由配置，否则用全局默认
-            env: env, // 传递 env 对象，供 custom 路由器访问 KV
         };
 
         const result = await func(params);
@@ -136,15 +127,6 @@ export default {
         // 从配置中获取缓存时间
         const cacheTime = result.isError ? routeConfig.error : routeConfig.success;
         const rss = result.data;
-
-        // 记录缓存元数据到 KV（如果配置了 KV）
-        if (env.RSS_KV && !result.isError) {
-            try {
-                await recordCacheMetadata(env.RSS_KV, paramName, paramValue, cacheTime);
-            } catch (e) {
-                console.warn('记录缓存元数据失败:', e);
-            }
-        }
 
 
         const contentTypes = {
