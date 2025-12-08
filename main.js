@@ -709,6 +709,111 @@ export default {
             return response
         }
 
+        // --- Folder Feed Handling ---
+        if (paramName === "folder") {
+            if (!env.RSS_KV) {
+                return new Response("KV Namespace 'RSS_KV' not bound.", { status: 500 });
+            }
+            
+            const folderName = paramValue;
+            const format = url.searchParams.get("format") || 'rss';
+            
+            const routes = await env.RSS_KV.get('routes', { type: 'json' }) || {};
+            const folderRoutes = Object.entries(routes).filter(([key, config]) => config.folder === folderName);
+            
+            if (folderRoutes.length === 0) {
+                return new Response("Folder not found or empty: " + folderName, { status: 404 });
+            }
+            
+            // Fetch all feeds in parallel
+            const feedPromises = folderRoutes.map(async ([key, config]) => {
+                const params = {
+                    param: key,
+                    workerUrl: new URL(request.url).origin,
+                    format: 'json', // Use JSON internally for easier merging
+                    maxItems: config.maxItems || 20,
+                };
+                
+                try {
+                    let result;
+                    if (config.type === 'telegram') {
+                        result = await telegramRouter(params, config);
+                    } else if (config.type === 'json') {
+                        result = await jsonRouter(params, config);
+                    } else if (config.type === 'rss') {
+                        result = await feedRouter(params, config);
+                    } else {
+                        result = await customRouter(params, config);
+                    }
+                    
+                    if (result.isError) return [];
+                    
+                    // Add source info to items
+                    return result.items.map(item => ({
+                        ...item,
+                        sourceTitle: config.channelTitle || key,
+                        title: `[${config.channelTitle || key}] ${item.title}`
+                    }));
+                } catch (e) {
+                    console.error(`Error fetching route ${key} for folder ${folderName}:`, e);
+                    return [];
+                }
+            });
+            
+            const results = await Promise.all(feedPromises);
+            let allItems = results.flat();
+            
+            // Sort by date (descending)
+            allItems.sort((a, b) => {
+                const dateA = new Date(a.pubDate || 0);
+                const dateB = new Date(b.pubDate || 0);
+                return dateB - dateA;
+            });
+            
+            // Limit total items (e.g. 50)
+            allItems = allItems.slice(0, 50);
+            
+            const channel = {
+                title: `Folder: ${folderName}`,
+                link: new URL(request.url).origin + `/?folder=${encodeURIComponent(folderName)}`,
+                description: `Combined feed for folder ${folderName}`,
+            };
+            
+            // Import itemsToRss dynamically or ensure it's imported at top
+            // It is imported at top as `import { itemsToRss } from './rss.js'`? No, I need to check imports.
+            // Yes, it is not imported in main.js. I need to import it.
+            // Wait, main.js imports customRouter etc, but not itemsToRss directly.
+            // I should import it.
+            
+            // Actually, I can use the imported routers to generate RSS? No, they return { data, items }.
+            // I need to generate RSS from merged items.
+            // I need to import itemsToRss in main.js.
+            
+            // Let's assume I will add the import.
+            
+            const { itemsToRss } = await import('./rss.js');
+            
+            const rss = itemsToRss(allItems, channel, format);
+            
+            const contentTypes = {
+                rss: "application/rss+xml; charset=utf-8",
+                atom: "application/atom+xml; charset=utf-8",
+                json: "application/json; charset=utf-8"
+            }
+
+            response = new Response(rss, {
+                headers: { 
+                    "content-type": contentTypes[format] || contentTypes.rss,
+                    "Cache-Control": `public, max-age=1800`, // 30 mins cache for folders
+                    "X-Cache-Status": "MISS",
+                    "Date": new Date().toUTCString(),
+                    "X-Generated-At": new Date().toISOString()
+                }
+            })
+            await cache.put(cacheKey, response.clone())
+            return response
+        }
+
         // --- Custom Route Handling ---
         if (paramName === "custom") {
             if (!env.RSS_KV) {

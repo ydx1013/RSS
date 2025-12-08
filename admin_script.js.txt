@@ -79,7 +79,10 @@ const API_BASE = '/api/routes';
                     <div class="p-4 flex-1">
                         <div class="flex items-center justify-between mb-2">
                             <h3 class="text-base font-semibold text-gray-900 truncate" title="${key}">${key}</h3>
-                            <span class="badge bg-gray-100 text-gray-700 text-xs">${config.type || 'html'}</span>
+                            <div class="flex gap-1">
+                                ${config.folder ? `<span class="badge bg-purple-50 text-purple-700 text-xs" title="文件夹: ${config.folder}">${config.folder}</span>` : ''}
+                                <span class="badge bg-gray-100 text-gray-700 text-xs">${config.type || 'html'}</span>
+                            </div>
                         </div>
                         <p class="text-xs text-gray-500 truncate mb-3" title="${config.url}">${config.url}</p>
                         <div class="flex flex-wrap gap-1 mb-3">
@@ -192,6 +195,7 @@ const API_BASE = '/api/routes';
             document.getElementById('dateSelector').value = config.dateSelector || '';
             document.getElementById('channelTitle').value = config.channelTitle || '';
             document.getElementById('channelDesc').value = config.channelDesc || '';
+            document.getElementById('folder').value = config.folder || '';
             document.getElementById('maxItems').value = config.maxItems || 20;
             document.getElementById('encoding').value = config.encoding || 'auto';
             document.getElementById('fullText').checked = config.fullText || false;
@@ -247,6 +251,7 @@ const API_BASE = '/api/routes';
                     dateSelector: document.getElementById('dateSelector').value,
                     channelTitle: document.getElementById('channelTitle').value,
                     channelDesc: document.getElementById('channelDesc').value,
+                    folder: document.getElementById('folder').value,
                     maxItems: parseInt(document.getElementById('maxItems').value) || 20,
                     encoding: document.getElementById('encoding').value,
                     fullText: document.getElementById('fullText').checked,
