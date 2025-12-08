@@ -3,6 +3,7 @@ import * as cheerio from 'cheerio';
 import { parseHTML } from 'linkedom';
 import { itemsToRss } from '../rss.js';
 import { fetchWithHeaders } from '../utils/fetcher.js';
+import { decodeText } from '../utils/helpers.js';
 
 export default async function (params, config) {
     const { format = 'rss' } = params; // 默认RSS格式，由URL参数控制
@@ -34,23 +35,6 @@ export default async function (params, config) {
         }
 
         let items = [];
-
-        // 编码处理辅助函数
-        const decodeText = async (response, encoding) => {
-            if (encoding === 'auto' || encoding === 'utf-8') {
-                return await response.text();
-            }
-            
-            // 对于非UTF-8编码，需要使用TextDecoder
-            try {
-                const buffer = await response.arrayBuffer();
-                const decoder = new TextDecoder(encoding);
-                return decoder.decode(buffer);
-            } catch (e) {
-                console.error(`Encoding error with ${encoding}, fallback to UTF-8:`, e);
-                return await response.text();
-            }
-        };
 
         if (type === 'xpath') {
             const html = await decodeText(response, encoding);

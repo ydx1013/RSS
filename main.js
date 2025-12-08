@@ -90,6 +90,31 @@ export default {
                 return new Response("Saved", { status: 200 });
             }
 
+            // Batch Update
+            if (request.method === 'PUT') {
+                const updates = await request.json(); // Expects { key1: config1, key2: config2 }
+                const list = await env.RSS_KV.get('routes', { type: 'json' }) || {};
+                
+                let changed = false;
+                const origin = new URL(request.url).origin;
+
+                for (const [key, config] of Object.entries(updates)) {
+                    if (config === null) {
+                        delete list[key];
+                    } else {
+                        config.updatedAt = Date.now();
+                        list[key] = config;
+                    }
+                    changed = true;
+                    await clearRouteCache(key, origin);
+                }
+                
+                if (changed) {
+                    await env.RSS_KV.put('routes', JSON.stringify(list));
+                }
+                return new Response("Batch Saved", { status: 200 });
+            }
+
             if (request.method === 'DELETE') {
                 const key = url.searchParams.get('key');
                 if (!key) return new Response("Missing key", { status: 400 });

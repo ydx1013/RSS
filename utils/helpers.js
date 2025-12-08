@@ -95,3 +95,28 @@ export function xmlToJson(xml) {
     result[root[0].tagName] = elementToJson($, root[0]);
     return result;
 }
+
+/**
+ * Decode response buffer to text with specified encoding
+ * @param {Response} response 
+ * @param {string} encoding 
+ * @returns {Promise<string>}
+ */
+export async function decodeText(response, encoding) {
+    if (!encoding || encoding === 'auto' || encoding === 'utf-8') {
+        return await response.text();
+    }
+    
+    try {
+        const buffer = await response.arrayBuffer();
+        const decoder = new TextDecoder(encoding);
+        return decoder.decode(buffer);
+    } catch (e) {
+        console.error(`Encoding error with ${encoding}, fallback to UTF-8:`, e);
+        // If arrayBuffer() was called, we can't call text() on the same response object unless we cloned it.
+        // But here we are inside catch block of arrayBuffer or TextDecoder.
+        // If arrayBuffer failed, we can't do much.
+        // If TextDecoder failed, we have the buffer.
+        return new TextDecoder('utf-8').decode(buffer); 
+    }
+}
