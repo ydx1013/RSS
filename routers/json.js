@@ -1,5 +1,6 @@
 import { itemsToRss } from '../rss.js';
 import { fetchWithHeaders } from '../utils/fetcher.js';
+import { getVal } from '../utils/helpers.js';
 
 export default async function (params, config) {
     const { format = 'rss' } = params;
@@ -30,39 +31,7 @@ export default async function (params, config) {
         const data = await response.json();
         
         // Helper to get value from object by path (supports nested paths, arrays, wildcards)
-        const getVal = (obj, path) => {
-            if (!path) return '';
-            if (path === '.') return obj; // 返回整个对象
-            
-            try {
-                // 分割路径，支持 . 和 [] 语法
-                const parts = path.replace(/\[(\d+)\]/g, '.$1').split('.');
-                let current = obj;
-                
-                for (const part of parts) {
-                    if (!part) continue;
-                    
-                    // 处理数组索引
-                    if (!isNaN(part)) {
-                        current = current[parseInt(part)];
-                    } else {
-                        current = current?.[part];
-                    }
-                    
-                    if (current === undefined || current === null) return '';
-                }
-                
-                // 如果结果是对象或数组，转换为字符串
-                if (typeof current === 'object') {
-                    return JSON.stringify(current);
-                }
-                
-                return String(current);
-            } catch(e) {
-                console.error('JSON path error:', path, e);
-                return '';
-            }
-        };
+        // Moved to utils/helpers.js
         
         // 获取列表数据
         let list = itemSelector ? getVal(data, itemSelector) : data;

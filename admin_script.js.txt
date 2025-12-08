@@ -266,10 +266,15 @@ const API_BASE = '/api/routes';
                 return;
             }
             
-            // Telegram 和 RSS 类型不需要选择器
-            if (data.config.type !== 'telegram' && data.config.type !== 'rss' && !data.config.itemSelector) {
-                alert('请填写列表选择器');
-                return;
+            // Telegram 类型不需要选择器
+            if (data.config.type !== 'telegram' && !data.config.itemSelector) {
+                // RSS 类型如果没填选择器，后端会自动处理，所以这里可以放行
+                if (data.config.type === 'rss') {
+                    // Do nothing, allow empty selector
+                } else {
+                    alert('请填写列表选择器');
+                    return;
+                }
             }
 
             // 切换到测试结果视图
@@ -378,6 +383,54 @@ const API_BASE = '/api/routes';
             }
         };
 
+        // Simple XML to JSON converter for frontend visualization
+        function xmlToJson(xml) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(xml, "text/xml");
+            
+            function elementToObj(element) {
+                const obj = {};
+                // Attributes
+                if (element.attributes && element.attributes.length > 0) {
+                    for (let i = 0; i < element.attributes.length; i++) {
+                        const attr = element.attributes[i];
+                        obj['@' + attr.name] = attr.value;
+                    }
+                }
+                
+                // Children
+                if (element.children.length === 0) {
+                    const text = element.textContent.trim();
+                    if (Object.keys(obj).length === 0) return text;
+                    if (text) obj['#text'] = text;
+                    return obj;
+                }
+                
+                for (let i = 0; i < element.children.length; i++) {
+                    const child = element.children[i];
+                    const childName = child.tagName;
+                    const childObj = elementToObj(child);
+                    
+                    if (obj[childName]) {
+                        if (!Array.isArray(obj[childName])) {
+                            obj[childName] = [obj[childName]];
+                        }
+                        obj[childName].push(childObj);
+                    } else {
+                        obj[childName] = childObj;
+                    }
+                }
+                return obj;
+            }
+            
+            const root = doc.documentElement;
+            const result = {};
+            if (root) {
+                result[root.tagName] = elementToObj(root);
+            }
+            return result;
+        }
+
         // 加载预览页面
         window.loadPreview = async function() {
             const url = document.getElementById('url').value;
@@ -394,14 +447,14 @@ const API_BASE = '/api/routes';
                 return;
             }
 
-            if (type === 'json') {
-                // JSON Preview
+            if (type === 'json' || type === 'rss') {
+                // JSON/RSS Preview
                 document.getElementById('previewFrame').classList.add('hidden');
-                document.getElementById('previewToolbar').classList.remove('hidden'); // Show toolbar for JSON
+                document.getElementById('previewToolbar').classList.remove('hidden'); // Show toolbar
                 document.getElementById('jsonPreview').classList.remove('hidden');
                 document.getElementById('jsonPreview').innerHTML = '<div class="text-center text-gray-400 py-10">加载中...</div>';
                 
-                // Update toolbar labels for JSON
+                // Update toolbar labels
                 document.getElementById('preview-btn-item').textContent = '📦 列表数组';
                 document.getElementById('preview-btn-title').textContent = '📝 标题字段';
                 document.getElementById('preview-btn-link').textContent = '🔗 链接字段';
@@ -409,14 +462,21 @@ const API_BASE = '/api/routes';
                 document.getElementById('preview-btn-date').textContent = '📅 日期字段';
 
                 try {
+                    // Use proxy to get raw content
                     const response = await authFetch(PROXY_JSON_API + '?url=' + encodeURIComponent(url));
-                    const jsonData = await response.json();
-                    renderJsonTree(jsonData, '', 0, document.getElementById('jsonPreview'));
+                    let data;
+                    if (type === 'rss') {
+                        const text = await response.text();
+                        data = xmlToJson(text);
+                    } else {
+                        data = await response.json();
+                    }
+                    renderJsonTree(data, '', 0, document.getElementById('jsonPreview'));
                 } catch (e) {
                     document.getElementById('jsonPreview').innerHTML = '<div class="text-center text-red-400 py-10">加载失败: ' + e.message + '</div>';
                 }
                 return;
-            } else if (type === 'telegram' || type === 'rss') {
+            } else if (type === 'telegram') {
                  document.getElementById('previewFrame').src = '';
                  document.getElementById('jsonPreview').innerHTML = '<div class="text-center text-gray-500 py-10">此类型无需可视化选择器，请直接点击"测试规则"查看结果</div>';
                  document.getElementById('jsonPreview').classList.remove('hidden');
@@ -452,9 +512,9 @@ const API_BASE = '/api/routes';
             const descInput = document.getElementById('descSelector');
             const dateInput = document.getElementById('dateSelector');
             
-            // 如果是 Telegram 或 RSS 类型，隐藏选择器配置（自动处理）
+            // 如果是 Telegram 类型，隐藏选择器配置（自动处理）
             const selectorSection = document.getElementById('section-selectors');
-            if (type === 'telegram' || type === 'rss') {
+            if (type === 'telegram') {
                 selectorSection.style.display = 'none';
                 itemInput.removeAttribute('required');
                 // 清空选择器（后端会自动处理）
@@ -473,7 +533,7 @@ const API_BASE = '/api/routes';
                     linkInput.placeholder = './/a/@href';
                     descInput.placeholder = './/div[@class="desc"]';
                     dateInput.placeholder = './/span[@class="date"]';
-                } else if (type === 'json') {
+                } else if (type === 'json' || type === 'rss') {
                     itemInput.placeholder = 'data.items (如果整个响应是数组可留空)';
                     titleInput.placeholder = 'title 或 模板:综合分位:{indexValue}';
                     linkInput.placeholder = 'url 或 模板:https://site.com/{id}';
