@@ -6,6 +6,7 @@ import { adminHtml } from "./admin_ui.js"
 import { cacheConfig } from "./config.js"
 import { checkAuth, generateToken } from "./utils/auth.js"
 import { clearRouteCache } from "./utils/cache.js"
+import { fetchWithHeaders } from "./utils/fetcher.js"
 
 export default {
     async fetch(request, env, ctx) {
@@ -147,11 +148,7 @@ export default {
             if (!targetUrl) return new Response("Missing url", { status: 400 });
 
             try {
-                const targetResp = await fetch(targetUrl, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-                    },
+                const targetResp = await fetchWithHeaders(targetUrl, {
                     redirect: 'follow'
                 });
                 
@@ -624,11 +621,7 @@ export default {
             }
 
             try {
-                const targetResp = await fetch(targetUrl, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
-                    }
-                });
+                const targetResp = await fetchWithHeaders(targetUrl);
                 const body = await targetResp.text();
                 return new Response(body, {
                     headers: {
@@ -670,11 +663,8 @@ export default {
         }
 
         if (paramName === "raw") {
-            const resp = await fetch(paramValue, {
+            const resp = await fetchWithHeaders(paramValue, {
                 headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                    "Accept-Language": "zh-CN,zh;q=0.9",
                     "Referer": paramValue,
                     "Origin": paramValue,
                 }
@@ -694,11 +684,8 @@ export default {
         }
 
         if (paramName === "proxy") {
-            const resp = await fetch(paramValue, {
+            const resp = await fetchWithHeaders(paramValue, {
                 headers: {
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-                    "Accept": "*/*",
-                    "Accept-Language": "zh-CN,zh;q=0.9",
                     "Referer": paramValue,
                     "Origin": paramValue,
                 }

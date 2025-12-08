@@ -1,6 +1,7 @@
 
 import * as cheerio from 'cheerio';
 import { itemsToRss } from '../rss.js';
+import { fetchWithHeaders } from '../utils/fetcher.js';
 
 export default async function (params, config) {
     const { format = 'rss' } = params;
@@ -12,9 +13,8 @@ export default async function (params, config) {
     } = config;
 
     try {
-        const response = await fetch(url, {
+        const response = await fetchWithHeaders(url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
                 'Accept': 'application/rss+xml, application/xml, application/atom+xml, text/xml, */*'
             },
         });

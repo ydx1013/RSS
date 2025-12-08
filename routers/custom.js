@@ -2,6 +2,7 @@
 import * as cheerio from 'cheerio';
 import { parseHTML } from 'linkedom';
 import { itemsToRss } from '../rss.js';
+import { fetchWithHeaders } from '../utils/fetcher.js';
 
 export default async function (params, config) {
     const { format = 'rss' } = params; // 默认RSS格式，由URL参数控制
@@ -26,11 +27,7 @@ export default async function (params, config) {
     } = config;
 
     try {
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-            },
-        });
+        const response = await fetchWithHeaders(url);
 
         if (!response.ok) {
             throw new Error(`HTTP Error: ${response.status}`);
@@ -280,11 +277,7 @@ export default async function (params, config) {
                     }
 
                     console.log(`[Full Text] Fetching: ${fetchUrl}`);
-                    const articleResp = await fetch(fetchUrl, {
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36',
-                        },
-                    });
+                    const articleResp = await fetchWithHeaders(fetchUrl);
                     
                     if (!articleResp.ok) {
                         console.error(`[Full Text] HTTP Error ${articleResp.status} for ${fetchUrl}`);
