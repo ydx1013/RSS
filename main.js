@@ -124,6 +124,8 @@ export default {
                     result = await telegramRouter(params, config);
                 } else if (config.type === 'json') {
                     result = await jsonRouter(params, config);
+                } else if (config.type === 'rss') {
+                    result = await feedRouter(params, config);
                 } else {
                     result = await customRouter(params, config);
                 }
