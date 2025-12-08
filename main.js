@@ -1,6 +1,7 @@
 import customRouter from "./routers/custom.js"
 import telegramRouter from "./routers/telegram.js"
 import jsonRouter from "./routers/json.js"
+import feedRouter from "./routers/feed.js"
 import { adminHtml } from "./admin_ui.js"
 import { cacheConfig } from "./config.js"
 import { checkAuth, generateToken } from "./utils/auth.js"
@@ -170,7 +171,8 @@ export default {
                 const proxyBase = new URL(request.url).origin + '/api/visual-proxy?url=';
 
                 // Remove existing scripts to prevent execution errors and CORS issues from SPA logic
-                html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "<!-- Script Removed -->");
+                // Use empty string instead of comment to avoid breaking nested comments (e.g. <!-- <script>...</script> -->)
+                html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
                 html = html.replace(/\bon\w+="[^"]*"/gi, ""); // Remove inline event handlers
 
                 // Rewrite URLs (src, href) to go through proxy
@@ -754,6 +756,8 @@ export default {
                 result = await telegramRouter(params, config);
             } else if (config.type === 'json') {
                 result = await jsonRouter(params, config);
+            } else if (config.type === 'rss') {
+                result = await feedRouter(params, config);
             } else {
                 result = await customRouter(params, config);
             }

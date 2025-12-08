@@ -266,8 +266,8 @@ const API_BASE = '/api/routes';
                 return;
             }
             
-            // Telegram 类型不需要选择器
-            if (data.config.type !== 'telegram' && !data.config.itemSelector) {
+            // Telegram 和 RSS 类型不需要选择器
+            if (data.config.type !== 'telegram' && data.config.type !== 'rss' && !data.config.itemSelector) {
                 alert('请填写列表选择器');
                 return;
             }
@@ -416,8 +416,12 @@ const API_BASE = '/api/routes';
                     document.getElementById('jsonPreview').innerHTML = '<div class="text-center text-red-400 py-10">加载失败: ' + e.message + '</div>';
                 }
                 return;
-            } else if (type === 'telegram') {
+            } else if (type === 'telegram' || type === 'rss') {
                  document.getElementById('previewFrame').src = '';
+                 document.getElementById('jsonPreview').innerHTML = '<div class="text-center text-gray-500 py-10">此类型无需可视化选择器，请直接点击"测试规则"查看结果</div>';
+                 document.getElementById('jsonPreview').classList.remove('hidden');
+                 document.getElementById('previewFrame').classList.add('hidden');
+                 document.getElementById('previewToolbar').classList.add('hidden');
                  return;
             }
             
@@ -448,9 +452,9 @@ const API_BASE = '/api/routes';
             const descInput = document.getElementById('descSelector');
             const dateInput = document.getElementById('dateSelector');
             
-            // 如果是 Telegram 类型，隐藏选择器配置（自动处理）
+            // 如果是 Telegram 或 RSS 类型，隐藏选择器配置（自动处理）
             const selectorSection = document.getElementById('section-selectors');
-            if (type === 'telegram') {
+            if (type === 'telegram' || type === 'rss') {
                 selectorSection.style.display = 'none';
                 itemInput.removeAttribute('required');
                 // 清空选择器（后端会自动处理）
