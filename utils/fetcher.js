@@ -1,4 +1,6 @@
 
+import { getCandidateUrls } from './domain.js';
+
 /**
  * Enhanced fetch wrapper with browser-like headers to avoid anti-bot detection.
  * @param {string} url 
@@ -35,4 +37,61 @@ export async function fetchWithHeaders(url, options = {}) {
     };
 
     return fetch(url, newOptions);
+}
+
+/**
+ * Fetch with domain fallback retry logic
+ * @param {string} url 
+ * @param {object} options 
+ * @param {string[][]} domainGroups Array of domain groups
+ * @returns {Promise<Response>}
+ */
+export async function fetchWithRetry(url, options = {}, domainGroups = []) {
+    const candidates = getCandidateUrls(url, domainGroups);
+    
+    if (candidates.length === 0) {
+        return fetchWithHeaders(url, options);
+    }
+
+    let lastError;
+    let lastResponse;
+
+    for (let i = 0; i < candidates.length; i++) {
+        const currentUrl = candidates[i];
+        const isRetry = i > 0;
+        
+        if (isRetry) {
+            console.log(`[Fetch] Retrying with mirror: ${currentUrl}`);
+        }
+
+        try {
+            const res = await fetchWithHeaders(currentUrl, options);
+            
+            // Success
+            if (res.ok) {
+                // Attach the effective URL to the response object so we can track which mirror worked
+                Object.defineProperty(res, 'effectiveRequestUrl', {
+                    value: currentUrl,
+                    writable: false
+                });
+                return res;
+            }
+            
+            lastResponse = res;
+            
+            // We retry on all errors (including 404) because for RSSHub mirrors, 
+            // 404 often means "blocked/empty" on one instance but might work on another.
+            
+            console.log(`[Fetch] ${currentUrl} failed with ${res.status}`);
+        } catch (e) {
+            console.log(`[Fetch] ${currentUrl} failed with error: ${e.message}`);
+            lastError = e;
+        }
+    }
+
+    // If we have a response (even error status), return it
+    if (lastResponse) return lastResponse;
+    
+    // Otherwise throw the last error
+    throw lastError || new Error(`All mirrors failed for ${url}`);
 }

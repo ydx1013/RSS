@@ -25,6 +25,8 @@ const API_BASE = '/api/routes';
                 loadRoutes();
             } else if (pageId === 'folders') {
                 loadFolders();
+            } else if (pageId === 'domains') {
+                loadDomains();
             } else if (pageId === 'dashboard') {
                 updateStats();
             } else if (pageId === 'editor') {
@@ -160,146 +162,51 @@ const API_BASE = '/api/routes';
             });
         }
 
-        // --- Folder Management ---
-        let currentEditingFolder = null;
-
-        function openFolderModal(folderName = null) {
-            currentEditingFolder = folderName;
-            const modal = document.getElementById('folderModal');
-            const title = document.getElementById('folderModalTitle');
-            const nameInput = document.getElementById('folderNameInput');
-            const list = document.getElementById('folderRouteList');
-            const search = document.getElementById('folderRouteSearch');
-            
-            modal.classList.remove('hidden');
-            search.value = '';
-            
-            if (folderName) {
-                title.textContent = '编辑合集';
-                nameInput.value = folderName;
-            } else {
-                title.textContent = '新建合集';
-                nameInput.value = '';
-            }
-            
-            // Render route list
-            list.innerHTML = '';
-            const keys = Object.keys(cachedRoutes).sort();
-            
-            if (keys.length === 0) {
-                list.innerHTML = '<div class="text-center text-gray-500 py-4 text-sm">暂无路由可供选择</div>';
-                return;
-            }
-            
-            keys.forEach(key => {
-                const config = cachedRoutes[key];
-                const isSelected = folderName && config.folder === folderName;
-                
-                const div = document.createElement('div');
-                div.className = 'flex items-center p-2 hover:bg-gray-100 rounded border-b border-gray-100 last:border-0 route-item';
-                div.dataset.key = key; // For filtering
-                
-                div.innerHTML = `
-                    <label class="flex items-center flex-1 cursor-pointer">
-                        <input type="checkbox" class="rounded border-gray-300 text-blue-600 mr-3 route-checkbox" value="${key}" ${isSelected ? 'checked' : ''}>
-                        <div class="flex-1 min-w-0">
-                            <div class="flex items-center justify-between">
-                                <span class="text-sm font-medium text-gray-900 truncate">${key}</span>
-                                ${config.folder && config.folder !== folderName ? `<span class="text-xs text-gray-400 ml-2 bg-gray-100 px-1 rounded">已在: ${config.folder}</span>` : ''}
-                            </div>
-                            <p class="text-xs text-gray-500 truncate">${config.url}</p>
-                        </div>
-                    </label>
-                `;
-                list.appendChild(div);
-            });
-        }
-
-        function closeFolderModal() {
-            document.getElementById('folderModal').classList.add('hidden');
-            currentEditingFolder = null;
-        }
-
-        function filterFolderRoutes() {
-            const query = document.getElementById('folderRouteSearch').value.toLowerCase();
-            document.querySelectorAll('#folderRouteList .route-item').forEach(item => {
-                const key = item.dataset.key.toLowerCase();
-                if (key.includes(query)) {
-                    item.classList.remove('hidden');
-                } else {
-                    item.classList.add('hidden');
-                }
-            });
-        }
-
-        async function saveFolder() {
-            const newName = document.getElementById('folderNameInput').value.trim();
-            if (!newName) {
-                alert('请输入合集名称');
-                return;
-            }
-            
-            const btn = document.getElementById('saveFolderBtn');
-            const originalText = btn.textContent;
-            btn.textContent = '保存中...';
-            btn.disabled = true;
+        // --- Domain Config Logic ---
+        async function loadDomains() {
+            const input = document.getElementById('domainGroupsInput');
+            input.value = '加载中...';
+            input.disabled = true;
             
             try {
-                const updates = {};
-                const checkboxes = document.querySelectorAll('.route-checkbox');
+                const res = await authFetch('/api/domains');
+                const config = await res.json();
                 
-                checkboxes.forEach(cb => {
-                    const key = cb.value;
-                    const config = cachedRoutes[key];
-                    const isChecked = cb.checked;
-                    
-                    // Logic:
-                    // 1. If checked, set folder to newName
-                    // 2. If unchecked AND it was previously in this folder (currentEditingFolder), remove folder
-                    // 3. If unchecked AND it was in another folder, leave it alone
-                    
-                    if (isChecked) {
-                        if (config.folder !== newName) {
-                            updates[key] = { ...config, folder: newName };
-                        }
-                    } else {
-                        if (currentEditingFolder && config.folder === currentEditingFolder) {
-                            updates[key] = { ...config, folder: '' };
-                        }
-                    }
-                });
-                
-                // Also handle renaming: if we renamed the folder, we need to update all routes that were in the old folder
-                // but are NOT in the current selection (though the logic above handles unchecked items)
-                // Wait, if I rename "Tech" to "Technology", currentEditingFolder is "Tech".
-                // If I check a box, it gets "Technology".
-                // If I uncheck a box that was "Tech", it gets "".
-                // This seems correct.
-                
-                if (Object.keys(updates).length === 0) {
-                    closeFolderModal();
-                    btn.textContent = originalText;
-                    btn.disabled = false;
-                    return;
+                if (config.groups && Array.isArray(config.groups)) {
+                    input.value = config.groups.map(g => g.join(', ')).join('\n');
+                } else {
+                    input.value = '';
                 }
-                
-                const res = await authFetch(API_BASE, {
-                    method: 'PUT',
+            } catch (e) {
+                alert('加载域名配置失败: ' + e.message);
+                input.value = '';
+            } finally {
+                input.disabled = false;
+            }
+        }
+
+        async function saveDomains() {
+            const input = document.getElementById('domainGroupsInput');
+            const text = input.value;
+            
+            const groups = text.split('\n')
+                .map(line => line.split(',').map(d => d.trim()).filter(d => d))
+                .filter(g => g.length > 0);
+            
+            try {
+                const res = await authFetch('/api/domains', {
+                    method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(updates)
+                    body: JSON.stringify({ groups })
                 });
                 
                 if (res.ok) {
-                    closeFolderModal();
-                    loadFolders(); // Reload list
+                    alert('保存成功');
                 } else {
-                    alert('保存失败: ' + await res.text());
+                    throw new Error(await res.text());
                 }
             } catch (e) {
-                alert('保存出错: ' + e.message);
-            } finally {
-                btn.textContent = originalText;
-                btn.disabled = false;
+                alert('保存失败: ' + e.message);
             }
         }
 

@@ -45,6 +45,30 @@ export default {
             return new Response('Unauthorized', { status: 401 });
         }
 
+        // --- API for Domain Config ---
+        if (path === '/api/domains') {
+            if (!env.RSS_KV) {
+                return new Response("KV Namespace 'RSS_KV' not bound.", { status: 500 });
+            }
+
+            if (request.method !== 'GET' && !checkAuth(request, env)) {
+                return new Response('Unauthorized', { status: 401 });
+            }
+
+            if (request.method === 'GET') {
+                const config = await env.RSS_KV.get('domain_config', { type: 'json' }) || { groups: [] };
+                return new Response(JSON.stringify(config), {
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
+
+            if (request.method === 'POST') {
+                const config = await request.json();
+                await env.RSS_KV.put('domain_config', JSON.stringify(config));
+                return new Response("Saved", { status: 200 });
+            }
+        }
+
         // --- API for KV Management ---
         if (path === '/api/routes') {
             if (!env.RSS_KV) {
@@ -135,6 +159,12 @@ export default {
         if (path === '/api/preview') {
             if (request.method !== 'POST') return new Response("Method not allowed", { status: 405 });
             const config = await request.json();
+            
+            // Load domain config
+            if (env.RSS_KV) {
+                const domainConfig = await env.RSS_KV.get('domain_config', { type: 'json' }) || { groups: [] };
+                config.domainConfig = domainConfig;
+            }
             
             const params = {
                 param: 'preview',
@@ -863,6 +893,10 @@ export default {
                 return new Response("Custom route not found: " + routeKey, { status: 404 });
             }
 
+            // Load domain config
+            const domainConfig = await env.RSS_KV.get('domain_config', { type: 'json' }) || { groups: [] };
+            config.domainConfig = domainConfig;
+
             const params = {
                 param: routeKey,
                 workerUrl: new URL(request.url).origin,
@@ -881,28 +915,45 @@ export default {
                 result = await customRouter(params, config);
             }
             
-            // --- Update Content Status ---
-            if (!result.isError && result.items && result.items.length > 0) {
+            // --- Update Content Status & Config ---
+            if (!result.isError) {
                 try {
-                    const latestItem = result.items[0];
-                    // Create a simple hash/signature of the latest item
-                    const latestSig = (latestItem.link || '') + '|' + (latestItem.title || '');
-                    
-                    const statuses = await env.RSS_KV.get('route_statuses', { type: 'json' }) || {};
-                    const currentStatus = statuses[routeKey] || {};
-                    
-                    // If signature changed, update timestamp
-                    if (currentStatus.latestSig !== latestSig) {
-                        statuses[routeKey] = {
-                            latestSig: latestSig,
-                            lastUpdate: Date.now(),
-                            itemCount: result.items.length
-                        };
-                        // Fire and forget update using ctx.waitUntil
-                        ctx.waitUntil(env.RSS_KV.put('route_statuses', JSON.stringify(statuses)));
+                    // 1. Update Status
+                    if (result.items && result.items.length > 0) {
+                        const latestItem = result.items[0];
+                        const latestSig = (latestItem.link || '') + '|' + (latestItem.title || '');
+                        
+                        const statuses = await env.RSS_KV.get('route_statuses', { type: 'json' }) || {};
+                        const currentStatus = statuses[routeKey] || {};
+                        
+                        if (currentStatus.latestSig !== latestSig) {
+                            statuses[routeKey] = {
+                                latestSig: latestSig,
+                                lastUpdate: Date.now(),
+                                itemCount: result.items.length
+                            };
+                            ctx.waitUntil(env.RSS_KV.put('route_statuses', JSON.stringify(statuses)));
+                        }
                     }
+
+                    // 2. Update Config if URL changed (Mirror Fallback)
+                    if (result.newUrl && result.newUrl !== config.url) {
+                        console.log(`[Auto Update] Updating URL for ${routeKey} from ${config.url} to ${result.newUrl}`);
+                        config.url = result.newUrl;
+                        config.updatedAt = Date.now();
+                        
+                        // We need to fetch fresh routes to avoid overwriting other concurrent changes
+                        // But for simplicity and since we are in a worker, we can just update this key in the previously fetched object?
+                        // No, better to be safe. But KV doesn't support atomic updates on single keys inside a JSON object.
+                        // We have to read-modify-write the whole 'routes' object.
+                        // Since we already read 'routes' above, we can reuse it, assuming low concurrency.
+                        
+                        routes[routeKey] = config;
+                        ctx.waitUntil(env.RSS_KV.put('routes', JSON.stringify(routes)));
+                    }
+
                 } catch(e) {
-                    console.error('Status update error:', e);
+                    console.error('Status/Config update error:', e);
                 }
             }
             

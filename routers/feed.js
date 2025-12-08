@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import { itemsToRss } from '../rss.js';
-import { fetchWithHeaders } from '../utils/fetcher.js';
+import { fetchWithHeaders, fetchWithRetry } from '../utils/fetcher.js';
 import { xmlToJson, getVal, decodeText } from '../utils/helpers.js';
 
 export default async function (params, config) {
@@ -16,7 +16,8 @@ export default async function (params, config) {
         descSelector,
         dateSelector,
         fullText = false,
-        fullTextSelector = ''
+        fullTextSelector = '',
+        domainConfig // Injected from main.js
     } = config;
 
     const logs = []; // Collect logs for preview
@@ -28,11 +29,18 @@ export default async function (params, config) {
     try {
         log(`[Feed] Config: fullText=${fullText}, fullTextSelector="${fullTextSelector}", itemSelector="${itemSelector}"`);
         
-        const response = await fetchWithHeaders(url, {
+        const response = await fetchWithRetry(url, {
             headers: {
                 'Accept': 'application/rss+xml, application/xml, application/atom+xml, text/xml, */*'
             },
-        });
+        }, domainConfig?.groups || []);
+
+        // Check if we used a different URL (mirror)
+        let newUrl = null;
+        if (response.effectiveRequestUrl && response.effectiveRequestUrl !== url) {
+            log(`[Feed] URL updated from ${url} to ${response.effectiveRequestUrl}`);
+            newUrl = response.effectiveRequestUrl;
+        }
 
         if (!response.ok) {
             throw new Error(`HTTP Error: ${response.status}`);
@@ -260,7 +268,8 @@ export default async function (params, config) {
             data: data,
             items: items,
             isError: false,
-            logs: logs
+            logs: logs,
+            newUrl: newUrl // Return the new URL if it changed
         };
 
     } catch (error) {
