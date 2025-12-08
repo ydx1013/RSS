@@ -7,6 +7,7 @@ import { cacheConfig } from "./config.js"
 import { checkAuth, generateToken } from "./utils/auth.js"
 import { clearRouteCache } from "./utils/cache.js"
 import { fetchWithHeaders } from "./utils/fetcher.js"
+import { sendBarkNotification } from "./utils/notify.js"
 
 export default {
     async fetch(request, env, ctx) {
@@ -905,14 +906,24 @@ export default {
             };
 
             let result;
-            if (config.type === 'telegram') {
-                result = await telegramRouter(params, config);
-            } else if (config.type === 'json') {
-                result = await jsonRouter(params, config);
-            } else if (config.type === 'rss') {
-                result = await feedRouter(params, config);
-            } else {
-                result = await customRouter(params, config);
+            try {
+                if (config.type === 'telegram') {
+                    result = await telegramRouter(params, config);
+                } else if (config.type === 'json') {
+                    result = await jsonRouter(params, config);
+                } else if (config.type === 'rss') {
+                    result = await feedRouter(params, config);
+                } else {
+                    result = await customRouter(params, config);
+                }
+            } catch (routerError) {
+                console.error(`Router execution failed for ${routeKey}:`, routerError);
+                result = {
+                    isError: true,
+                    message: `Internal Router Error: ${routerError.message}`,
+                    data: '', // Will be handled below
+                    items: []
+                };
             }
             
             // --- Update Content Status & Config ---
@@ -928,6 +939,7 @@ export default {
                         
                         if (currentStatus.latestSig !== latestSig) {
                             statuses[routeKey] = {
+                                ...currentStatus, // Keep existing props like lastNotify
                                 latestSig: latestSig,
                                 lastUpdate: Date.now(),
                                 itemCount: result.items.length
@@ -955,6 +967,73 @@ export default {
                 } catch(e) {
                     console.error('Status/Config update error:', e);
                 }
+                
+                // --- Partial Failure Notification Logic ---
+                if (domainConfig.notifications?.barkUrl && domainConfig.notifications?.notifyOnPartial && result.failures && result.failures.length > 0) {
+                    ctx.waitUntil((async () => {
+                        try {
+                            const statuses = await env.RSS_KV.get('route_statuses', { type: 'json' }) || {};
+                            const currentStatus = statuses[routeKey] || {};
+                            const lastPartialNotify = currentStatus.lastPartialNotify || 0;
+                            const now = Date.now();
+                            
+                            // Notify at most once every 24 hours for partial failures to avoid spam
+                            if (now - lastPartialNotify > 24 * 60 * 60 * 1000) {
+                                const failedUrls = result.failures.map(f => f.url).join('\n');
+                                await sendBarkNotification(
+                                    domainConfig.notifications.barkUrl,
+                                    `RSS Partial Failure: ${routeKey}`,
+                                    `Route: ${routeKey}\nSuccess: ${result.newUrl || config.url}\nFailed Nodes:\n${failedUrls}`,
+                                    'RSS-Warning',
+                                    request.url
+                                );
+                                
+                                // Update status
+                                currentStatus.lastPartialNotify = now;
+                                statuses[routeKey] = currentStatus;
+                                await env.RSS_KV.put('route_statuses', JSON.stringify(statuses));
+                            }
+                        } catch (e) {
+                            console.error('Partial notification error:', e);
+                        }
+                    })());
+                }
+
+            } else if (domainConfig.notifications?.barkUrl) {
+                // --- Error Notification Logic ---
+                ctx.waitUntil((async () => {
+                    try {
+                        const statuses = await env.RSS_KV.get('route_statuses', { type: 'json' }) || {};
+                        const currentStatus = statuses[routeKey] || {};
+                        const lastNotify = currentStatus.lastNotify || 0;
+                        const now = Date.now();
+                        
+                        // Notify at most once every 6 hours
+                        if (now - lastNotify > 6 * 60 * 60 * 1000) {
+                            let errorBody = `Route: ${routeKey}\nURL: ${config.url}\nError: ${result.message || 'Unknown error'}`;
+                            
+                            // Add detailed failure log if available
+                            if (result.failures && result.failures.length > 0) {
+                                errorBody += '\n\nFailed Nodes:\n' + result.failures.map(f => `- ${f.url}: ${f.error}`).join('\n');
+                            }
+                            
+                            await sendBarkNotification(
+                                domainConfig.notifications.barkUrl,
+                                `RSS Worker Error: ${routeKey}`,
+                                errorBody,
+                                'RSS-Error',
+                                request.url
+                            );
+                            
+                            // Update status
+                            currentStatus.lastNotify = now;
+                            statuses[routeKey] = currentStatus;
+                            await env.RSS_KV.put('route_statuses', JSON.stringify(statuses));
+                        }
+                    } catch (e) {
+                        console.error('Notification error:', e);
+                    }
+                })());
             }
             
             // Reuse existing response generation logic

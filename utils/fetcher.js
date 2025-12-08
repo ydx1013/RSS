@@ -55,6 +55,7 @@ export async function fetchWithRetry(url, options = {}, domainGroups = []) {
 
     let lastError;
     let lastResponse;
+    const failures = [];
 
     for (let i = 0; i < candidates.length; i++) {
         const currentUrl = candidates[i];
@@ -74,24 +75,38 @@ export async function fetchWithRetry(url, options = {}, domainGroups = []) {
                     value: currentUrl,
                     writable: false
                 });
+                // Attach failures history
+                Object.defineProperty(res, 'retryFailures', {
+                    value: failures,
+                    writable: false
+                });
                 return res;
             }
             
             lastResponse = res;
             
-            // We retry on all errors (including 404) because for RSSHub mirrors, 
-            // 404 often means "blocked/empty" on one instance but might work on another.
+            // Record failure
+            failures.push({ url: currentUrl, error: `HTTP ${res.status} ${res.statusText}` });
             
             console.log(`[Fetch] ${currentUrl} failed with ${res.status}`);
         } catch (e) {
             console.log(`[Fetch] ${currentUrl} failed with error: ${e.message}`);
+            failures.push({ url: currentUrl, error: e.message });
             lastError = e;
         }
     }
 
     // If we have a response (even error status), return it
-    if (lastResponse) return lastResponse;
+    if (lastResponse) {
+        Object.defineProperty(lastResponse, 'retryFailures', {
+            value: failures,
+            writable: false
+        });
+        return lastResponse;
+    }
     
     // Otherwise throw the last error
-    throw lastError || new Error(`All mirrors failed for ${url}`);
+    const finalError = lastError || new Error(`All mirrors failed for ${url}`);
+    finalError.retryFailures = failures;
+    throw finalError;
 }

@@ -165,8 +165,13 @@ const API_BASE = '/api/routes';
         // --- Domain Config Logic ---
         async function loadDomains() {
             const input = document.getElementById('domainGroupsInput');
+            const barkInput = document.getElementById('barkUrl');
+            const notifyOnPartialInput = document.getElementById('notifyOnPartial');
+            
             input.value = '加载中...';
             input.disabled = true;
+            if (barkInput) barkInput.disabled = true;
+            if (notifyOnPartialInput) notifyOnPartialInput.disabled = true;
             
             try {
                 const res = await authFetch('/api/domains');
@@ -177,27 +182,47 @@ const API_BASE = '/api/routes';
                 } else {
                     input.value = '';
                 }
+                
+                if (barkInput) {
+                    barkInput.value = config.notifications?.barkUrl || '';
+                }
+                if (notifyOnPartialInput) {
+                    notifyOnPartialInput.checked = config.notifications?.notifyOnPartial || false;
+                }
             } catch (e) {
                 alert('加载域名配置失败: ' + e.message);
                 input.value = '';
             } finally {
                 input.disabled = false;
+                if (barkInput) barkInput.disabled = false;
+                if (notifyOnPartialInput) notifyOnPartialInput.disabled = false;
             }
         }
 
         async function saveDomains() {
             const input = document.getElementById('domainGroupsInput');
+            const barkInput = document.getElementById('barkUrl');
+            const notifyOnPartialInput = document.getElementById('notifyOnPartial');
             const text = input.value;
             
             const groups = text.split('\n')
-                .map(line => line.split(',').map(d => d.trim()).filter(d => d))
+                .map(line => {
+                    // Remove optional label prefix (e.g. "RSSHub: " or "推特域名：")
+                    const cleanLine = line.replace(/^[^:,]+[:：]/, '');
+                    return cleanLine.split(',').map(d => d.trim()).filter(d => d);
+                })
                 .filter(g => g.length > 0);
+            
+            const notifications = {
+                barkUrl: barkInput ? barkInput.value.trim() : '',
+                notifyOnPartial: notifyOnPartialInput ? notifyOnPartialInput.checked : false
+            };
             
             try {
                 const res = await authFetch('/api/domains', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ groups })
+                    body: JSON.stringify({ groups, notifications })
                 });
                 
                 if (res.ok) {
@@ -268,6 +293,60 @@ const API_BASE = '/api/routes';
 
         function updateStats() {
             document.getElementById('stat-total').textContent = Object.keys(cachedRoutes).length;
+            
+            // User defined known domains for identification
+            const KNOWN_DOMAINS = [
+                // RSSHub
+                'rss.injahow.cn', 'hub.slarker.me', 'rsshub.rssforever.com', 
+                'rsshub.howie6879.com', 'rsshub.stefanzhang.com', 'rsshub.pseudoyu.com', 
+                'rsshub.imaegoo.com', 
+                // Twitter
+                'twitter.com', 'x.com',
+                // Common Defaults
+                'rsshub.app', 'rsshub.feed', 'rsshub.io', 'rsshub.ink'
+            ];
+            
+            const domainCounts = {};
+            Object.values(cachedRoutes).forEach(config => {
+                if (config.url) {
+                    try {
+                        const hostname = new URL(config.url).hostname;
+                        domainCounts[hostname] = (domainCounts[hostname] || 0) + 1;
+                    } catch (e) {}
+                }
+            });
+            
+            // Find the most active domain that is in our known list
+            let topDomain = '';
+            let maxCount = 0;
+            
+            // First pass: Check known domains
+            for (const domain of KNOWN_DOMAINS) {
+                if (domainCounts[domain] && domainCounts[domain] > maxCount) {
+                    maxCount = domainCounts[domain];
+                    topDomain = domain;
+                }
+            }
+            
+            // Fallback: If no known domain found, just take the absolute top one
+            if (!topDomain) {
+                for (const [domain, count] of Object.entries(domainCounts)) {
+                    if (count > maxCount) {
+                        maxCount = count;
+                        topDomain = domain;
+                    }
+                }
+            }
+            
+            const domainEl = document.getElementById('stat-active-domain');
+            const containerEl = document.getElementById('stat-active-domain-container');
+            
+            if (topDomain && containerEl && domainEl) {
+                domainEl.textContent = topDomain;
+                containerEl.style.display = 'block';
+            } else if (containerEl) {
+                containerEl.style.display = 'none';
+            }
             
             const allRoutes = Object.entries(cachedRoutes)
                 .filter(([_, config]) => config.status && config.status.lastUpdate);
@@ -726,7 +805,13 @@ const API_BASE = '/api/routes';
                 dateInput.value = '';
             } else {
                 selectorSection.style.display = 'block';
-                itemInput.setAttribute('required', 'required');
+                
+                // RSS 类型不需要强制必填列表选择器
+                if (type === 'rss') {
+                    itemInput.removeAttribute('required');
+                } else {
+                    itemInput.setAttribute('required', 'required');
+                }
                 
                 if (type === 'xpath') {
                     itemInput.placeholder = '//div[@class="list-item"]';
@@ -1045,7 +1130,33 @@ const API_BASE = '/api/routes';
                 }
             }, 1000); // 1秒延迟，避免频繁加载
         });
-        
+
+        // 优化交互：聚焦输入框时自动切换回预览视图
+        const autoSwitchInputs = ['url', 'itemSelector', 'titleSelector', 'linkSelector', 'descSelector', 'dateSelector', 'fullTextSelector'];
+        autoSwitchInputs.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.addEventListener('focus', () => {
+                    // 切换到预览视图
+                    document.getElementById('previewTitle').textContent = '可视化预览';
+                    document.getElementById('visualPreview').classList.remove('hidden');
+                    document.getElementById('testResult').classList.add('hidden');
+                    
+                    // 特殊处理：如果是 URL 聚焦，且当前似乎没有加载预览，则尝试加载
+                    if (id === 'url') {
+                        const url = el.value;
+                        const frameSrc = document.getElementById('previewFrame').getAttribute('src');
+                        const jsonContent = document.getElementById('jsonPreview').innerHTML;
+                        
+                        // 如果有 URL 但预览区域是空的，尝试加载
+                        if (url && url.startsWith('http') && (!frameSrc || frameSrc === '') && (!jsonContent || jsonContent === '')) {
+                            loadPreview();
+                        }
+                    }
+                });
+            }
+        });
+
         // 类型选择器变化时更新占位符并重新加载预览
         document.getElementById('type').addEventListener('change', () => {
             updatePlaceholder();

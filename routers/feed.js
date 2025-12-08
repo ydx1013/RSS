@@ -269,7 +269,8 @@ export default async function (params, config) {
             items: items,
             isError: false,
             logs: logs,
-            newUrl: newUrl // Return the new URL if it changed
+            newUrl: newUrl, // Return the new URL if it changed
+            failures: response.retryFailures || [] // Return failures
         };
 
     } catch (error) {
@@ -284,7 +285,8 @@ export default async function (params, config) {
             }], { title: 'Error' }, format),
             isError: true,
             message: error.message,
-            logs: logs
+            logs: logs,
+            failures: error.retryFailures || []
         };
     }
 }
