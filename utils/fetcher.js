@@ -22,21 +22,60 @@ export async function fetchWithHeaders(url, options = {}) {
         'Sec-Fetch-Site': 'none',
         'Sec-Fetch-User': '?1',
     };
+    // Merge base headers with any provided headers
+    const baseHeaders = { ...defaultHeaders, ...(options.headers || {}) };
 
-    // Merge headers
-    const headers = { ...defaultHeaders, ...(options.headers || {}) };
+    // Prepare a set of header variants to try when a request is blocked by anti-bot
+    // Order matters: prefer original headers first, then fallbacks.
+    let originRef = '';
+    try { originRef = new URL(url).origin; } catch (e) { originRef = ''; }
 
-    // If Referer is not set, maybe set it to the origin of the url?
-    // Some sites check Referer. But setting it to self might be safer or leaving it empty.
-    // Let's leave it empty unless specified.
+    const headerVariants = [
+        // 1. Default (desktop Chrome-like)
+        { ...baseHeaders },
+        // 2. Edge-like desktop UA
+        { ...baseHeaders, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0' },
+        // 3. Mobile Safari UA with Referer set to origin (some sites allow mobile UA)
+        { ...baseHeaders, 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1', 'Referer': originRef },
+        // 4. Fallback: Googlebot (some sites intentionally permit crawlers)
+        { ...baseHeaders, 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)', 'Referer': originRef }
+    ];
 
-    const newOptions = {
-        ...options,
-        headers: headers,
-        // redirect: 'follow' // Default is follow
-    };
+    // Try each variant in sequence. If network error or anti-bot status (403/429/5xx), try next variant.
+    const retryStatuses = new Set([403, 429, 503, 521, 522, 523, 524]);
 
-    return fetch(url, newOptions);
+    for (let i = 0; i < headerVariants.length; i++) {
+        const headers = headerVariants[i];
+        const newOptions = { ...options, headers };
+
+        try {
+            const res = await fetch(url, newOptions);
+
+            // If successful or non-retryable status, return immediately
+            if (res.ok) {
+                return res;
+            }
+
+            // If status is not in retry list, return the response (e.g., 404)
+            if (!retryStatuses.has(res.status)) {
+                return res;
+            }
+
+            // Otherwise, record and try next variant after a small delay
+            console.warn(`[fetchWithHeaders] Variant #${i} returned status ${res.status} for ${url}, trying next variant`);
+        } catch (e) {
+            console.warn(`[fetchWithHeaders] Variant #${i} network error for ${url}: ${e.message}`);
+            // If last variant, rethrow
+            if (i === headerVariants.length - 1) throw e;
+        }
+
+        // Backoff delay between attempts (increasing)
+        const delayMs = 300 + i * 250;
+        await new Promise(r => setTimeout(r, delayMs));
+    }
+
+    // As a final fallback, perform a plain fetch with original options (should rarely reach here)
+    return fetch(url, options);
 }
 
 /**

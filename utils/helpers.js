@@ -103,20 +103,73 @@ export function xmlToJson(xml) {
  * @returns {Promise<string>}
  */
 export async function decodeText(response, encoding) {
-    if (!encoding || encoding === 'auto' || encoding === 'utf-8') {
-        return await response.text();
+    // If encoding is explicitly provided and is not 'auto', use it directly
+    if (encoding && encoding !== 'auto' && encoding !== 'utf-8') {
+        try {
+            const buffer = await response.arrayBuffer();
+            const decoder = new TextDecoder(encoding);
+            return decoder.decode(buffer);
+        } catch (e) {
+            console.error(`Encoding error with ${encoding}, fallback to UTF-8:`, e);
+            try {
+                const buffer = await response.arrayBuffer();
+                return new TextDecoder('utf-8').decode(buffer);
+            } catch (e2) {
+                return await response.text();
+            }
+        }
     }
-    
+
+    // Auto-detect charset from Content-Type header or from meta tags in HTML
     try {
-        const buffer = await response.arrayBuffer();
-        const decoder = new TextDecoder(encoding);
-        return decoder.decode(buffer);
+        const cloned = response.clone();
+        const contentType = cloned.headers.get('content-type') || '';
+        const charsetMatch = contentType.match(/charset=\s*([^;\s]+)/i);
+        if (charsetMatch && charsetMatch[1] && charsetMatch[1].toLowerCase() !== 'utf-8') {
+            const charset = charsetMatch[1].toLowerCase();
+            try {
+                const buffer = await cloned.arrayBuffer();
+                return new TextDecoder(charset).decode(buffer);
+            } catch (e) {
+                console.warn('Failed to decode with charset from header:', charset, e);
+                // fallback to further detection below
+            }
+        }
+
+        // Read a portion of the body to search for <meta charset> or <meta http-equiv> declarations
+        const probeResp = response.clone();
+        const buf = await probeResp.arrayBuffer();
+        const probeLen = Math.min(buf.byteLength, 8192);
+        const probeSlice = buf.slice(0, probeLen);
+        // Try decoding as utf-8 first for meta sniffing
+        let snippet = '';
+        try {
+            snippet = new TextDecoder('utf-8', { fatal: false }).decode(probeSlice);
+        } catch (e) {
+            snippet = '';
+        }
+
+        // Search for <meta charset="..."> or <meta http-equiv="Content-Type" content="text/html; charset=...">
+        const metaMatch = snippet.match(/<meta[^>]+charset=["']?([^"'\s/>]+)/i) || snippet.match(/<meta[^>]+content=["'][^"']*charset=([^"'\s/>]+)/i);
+        if (metaMatch && metaMatch[1]) {
+            const metaCharset = metaMatch[1].toLowerCase();
+            if (metaCharset !== 'utf-8') {
+                try {
+                    return new TextDecoder(metaCharset).decode(buf);
+                } catch (e) {
+                    console.warn('Failed to decode with meta charset:', metaCharset, e);
+                }
+            }
+        }
+
+        // Default fallback: let platform handle it (text())
+        return await response.text();
     } catch (e) {
-        console.error(`Encoding error with ${encoding}, fallback to UTF-8:`, e);
-        // If arrayBuffer() was called, we can't call text() on the same response object unless we cloned it.
-        // But here we are inside catch block of arrayBuffer or TextDecoder.
-        // If arrayBuffer failed, we can't do much.
-        // If TextDecoder failed, we have the buffer.
-        return new TextDecoder('utf-8').decode(buffer); 
+        try {
+            return await response.text();
+        } catch (e2) {
+            console.error('Failed to decode response body:', e2);
+            return '';
+        }
     }
 }

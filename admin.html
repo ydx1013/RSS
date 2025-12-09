@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RSS Worker 管理后台</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Favicon and theme color -->
+    <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/3670/3670157.png" type="image/png">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3670/3670157.png">
+    <meta name="theme-color" content="#f97316">
     <!-- CSS_INJECT_POINT -->
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -218,8 +222,17 @@
             </div>
             
             <div class="bg-white rounded-lg shadow border border-gray-200 p-6">
-                <div class="mb-4">
+                    <div class="mb-4">
                     <label class="block text-sm font-medium text-gray-700 mb-2">域名组配置</label>
+                    <div class="flex items-center gap-3 mb-2">
+                        <div>
+                            <p class="text-xs text-gray-500">每行输入一组域名，格式支持带备注的形式：<br><code>备注: 域名1, 域名2, 域名3</code></p>
+                        </div>
+                        <div class="ml-auto">
+                            <label class="text-xs text-gray-500 mr-2">活跃节点备注</label>
+                            <select id="activeRemarkSelect" class="text-sm px-2 py-1 border border-gray-300 rounded bg-white"></select>
+                        </div>
+                    </div>
                     <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
                         <div class="flex">
                             <div class="flex-shrink-0">
@@ -244,15 +257,25 @@
                     <div class="bg-gray-50 p-4 rounded-md border border-gray-200 mb-4">
                         <label class="block text-sm font-medium text-gray-700 mb-1">Bark 推送 URL</label>
                         <input type="url" id="barkUrl" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="https://api.day.app/YOUR_KEY/">
+                        <div class="mt-3 flex gap-2">
+                            <button id="testBarkBtn" onclick="testBark()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-indigo-700">发送测试通知</button>
+                            <span id="testBarkStatus" class="text-sm text-gray-500 self-center">（点击发送一条测试通知到配置的 Bark URL）</span>
+                        </div>
                         <p class="text-xs text-gray-500 mt-1">监控所有订阅源（包括 RSSHub、自定义 HTML、JSON 等）。当任何订阅源发生错误或无法访问时，发送通知。</p>
                         
-                        <div class="mt-3 flex items-center">
-                            <input type="checkbox" id="notifyOnPartial" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                            <label for="notifyOnPartial" class="ml-2 block text-sm text-gray-900">
-                                当备用节点失败时也发送通知 (Partial Failure)
-                            </label>
+                        <div class="bg-white rounded-md border border-gray-200 p-4">
+                            <h4 class="text-sm font-medium text-gray-800 mb-2">为哪些订阅启用 Bark 通知</h4>
+                            <p class="text-xs text-gray-500 mb-3">在下方列表中选择你想接收通知的订阅源（保存后会批量更新对应路由的通知设置）。</p>
+                            <div id="barkRouteList" class="max-h-64 overflow-auto border border-gray-100 rounded p-2 bg-gray-50"></div>
+                                <div class="mt-3 flex gap-2 items-center">
+                                <button onclick="saveBarkSelections()" class="bg-green-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-green-700">保存路由通知设置</button>
+                                <button onclick="loadBarkRouteList()" class="bg-white border border-gray-200 px-3 py-1.5 rounded-md text-sm">刷新列表</button>
+                                <button onclick="selectAllBark()" class="bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-blue-700">全选</button>
+                                <button onclick="deselectAllBark()" class="bg-white border border-gray-200 px-3 py-1.5 rounded-md text-sm">全不选</button>
+                                <span id="barkRouteStatus" class="text-sm text-gray-500 self-center"></span>
+                            </div>
                         </div>
-                        <p class="text-xs text-gray-500 ml-6 mt-1">开启后，如果主节点或某个备用节点失败（但最终成功），也会发送通知告知哪些节点不可用。</p>
+                        <!-- Partial failure notification option removed: notifications are sent for route-level errors only. -->
                     </div>
                 </div>
             </div>
@@ -395,6 +418,7 @@
                                         <span class="ml-2 text-gray-900 font-medium">倒序排列 (最新的在最后)</span>
                                     </label>
                                 </div>
+                                <!-- Per-route Bark toggle removed: centralized control available in 域名配置 -->
                                 <div>
                                     <label class="flex items-center text-sm">
                                         <input type="checkbox" id="fullText" class="rounded border-gray-300 text-blue-600">

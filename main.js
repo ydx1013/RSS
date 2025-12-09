@@ -6,7 +6,7 @@ import { adminHtml } from "./admin_ui.js"
 import { cacheConfig } from "./config.js"
 import { checkAuth, generateToken } from "./utils/auth.js"
 import { clearRouteCache } from "./utils/cache.js"
-import { fetchWithHeaders } from "./utils/fetcher.js"
+import { fetchWithHeaders, fetchWithRetry } from "./utils/fetcher.js"
 import { sendBarkNotification } from "./utils/notify.js"
 
 export default {
@@ -35,6 +35,43 @@ export default {
                     });
                 }
                 return new Response('Unauthorized', { status: 401 });
+            }
+        }
+
+        // --- Bark Test Endpoint (Admin only) ---
+        if (path === '/api/test-bark') {
+            if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+            if (!checkAuth(request, env)) return new Response('Unauthorized', { status: 401 });
+
+            try {
+                const body = await request.json();
+                const barkUrl = (body && body.barkUrl) ? body.barkUrl : null;
+
+                // If not provided in body, try global domain config
+                let target = barkUrl;
+                if (!target && env.RSS_KV) {
+                    const domainConfig = await env.RSS_KV.get('domain_config', { type: 'json' }) || {};
+                    target = domainConfig.notifications?.barkUrl || null;
+                }
+
+                if (!target) return new Response(JSON.stringify({ ok: false, error: 'No Bark URL configured' }), { headers: { 'Content-Type': 'application/json' }, status: 400 });
+
+                // Use sendBarkNotification if available
+                try {
+                    const { sendBarkNotification } = await import('./utils/notify.js');
+                    const ok = await sendBarkNotification(target, 'Test Notification', 'This is a test notification from RSS Worker.', 'RSS-Test', '');
+                    if (ok) {
+                        return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+                    } else {
+                        return new Response(JSON.stringify({ ok: false, error: 'Failed to deliver to Bark' }), { headers: { 'Content-Type': 'application/json' }, status: 502 });
+                    }
+                } catch (e) {
+                    console.error('Test Bark error:', e);
+                    return new Response(JSON.stringify({ ok: false, error: e.message }), { headers: { 'Content-Type': 'application/json' }, status: 500 });
+                }
+
+            } catch (e) {
+                return new Response(JSON.stringify({ ok: false, error: e.message }), { headers: { 'Content-Type': 'application/json' }, status: 400 });
             }
         }
 
@@ -206,9 +243,11 @@ export default {
             if (!targetUrl) return new Response("Missing url", { status: 400 });
 
             try {
-                const targetResp = await fetchWithHeaders(targetUrl, {
+                // Use fetchWithRetry to leverage domain mirrors when available
+                const domainConfig = env.RSS_KV ? await env.RSS_KV.get('domain_config', { type: 'json' }) : null;
+                const targetResp = await fetchWithRetry(targetUrl, {
                     redirect: 'follow'
-                });
+                }, domainConfig?.groups || []);
                 
                 // 1. Handle Non-HTML Resources (Images, CSS, Fonts, etc.)
                 const contentType = targetResp.headers.get('Content-Type') || '';
@@ -223,6 +262,190 @@ export default {
                 
                 // 2. Handle HTML
                 let html = await targetResp.text();
+
+                // Try to extract inline JSON data (Next.js __NEXT_DATA__, ld+json, window.__INITIAL_*)
+                const tryExtractInline = async (rawHtml, baseUrl) => {
+                    try {
+                        const items = [];
+
+                        // 1) application/ld+json
+                        const ldRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+                        let m;
+                        while ((m = ldRe.exec(rawHtml))) {
+                            try {
+                                const obj = JSON.parse(m[1]);
+                                // If it's an ItemList or contains items/articles, extract
+                                if (Array.isArray(obj)) {
+                                    obj.forEach(o => {
+                                        if (o.headline || o.name || o.url) items.push(o);
+                                    });
+                                } else if (obj['@type'] === 'ItemList' && obj.itemListElement) {
+                                    (obj.itemListElement || []).forEach(el => items.push(el));
+                                } else if (obj['@type'] && (obj['@type'].toLowerCase().includes('article') || obj['@type'].toLowerCase().includes('news'))) {
+                                    items.push(obj);
+                                } else if (obj.mainEntity && Array.isArray(obj.mainEntity)) {
+                                    obj.mainEntity.forEach(e => items.push(e));
+                                }
+                            } catch (e) { }
+                        }
+
+                        // 2) Next.js __NEXT_DATA__
+                        const nextRe = /<script[^>]+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i;
+                        const nextMatch = rawHtml.match(nextRe);
+                        if (nextMatch) {
+                            try {
+                                const nd = JSON.parse(nextMatch[1]);
+                                // Deep search for arrays that look like posts
+                                const found = [];
+                                const walk = (obj) => {
+                                    if (!obj || typeof obj !== 'object') return;
+                                    if (Array.isArray(obj)) {
+                                        // check if array of objects with title/link
+                                        const sample = obj.find(i => i && typeof i === 'object' && (i.title || i.name || i.url || i.href || i.link || i.headline));
+                                        if (sample) {
+                                            obj.forEach(i => found.push(i));
+                                            return;
+                                        }
+                                        // otherwise walk items
+                                        obj.forEach(i => walk(i));
+                                    } else {
+                                        for (const k of Object.keys(obj)) {
+                                            walk(obj[k]);
+                                        }
+                                    }
+                                };
+                                walk(nd);
+                                if (found.length > 0) {
+                                    found.forEach(i => items.push(i));
+                                }
+                            } catch (e) {}
+                        }
+
+                        // 3) window.__INITIAL_STATE__ or similar
+                        const winRe = /window\.(?:__INITIAL_STATE__|__INITIAL_DATA__|__DATA__|__PRELOADED_STATE__|__SSR_DATA__|__STATE__)\s*=\s*(\{[\s\S]*?\});/i;
+                        const winMatch = rawHtml.match(winRe);
+                        if (winMatch) {
+                            try {
+                                const obj = JSON.parse(winMatch[1]);
+                                // same deep walk
+                                const walk2 = (o) => {
+                                    if (!o || typeof o !== 'object') return;
+                                    if (Array.isArray(o)) {
+                                        const sample = o.find(i => i && typeof i === 'object' && (i.title || i.name || i.url || i.link || i.headline));
+                                        if (sample) {
+                                            o.forEach(i => items.push(i));
+                                            return;
+                                        }
+                                        o.forEach(i => walk2(i));
+                                    } else {
+                                        for (const k of Object.keys(o)) walk2(o[k]);
+                                    }
+                                };
+                                walk2(obj);
+                            } catch (e) {}
+                        }
+
+                        // 3.5) <script type="application/json"> blocks
+                        try {
+                            const jsonScriptRe = /<script[^>]+type=['"]application\/json['"][^>]*>([\s\S]*?)<\/script>/gi;
+                            let jsMatch;
+                            while ((jsMatch = jsonScriptRe.exec(rawHtml))) {
+                                try {
+                                    const obj = JSON.parse(jsMatch[1]);
+                                    const walk3 = (o) => {
+                                        if (!o || typeof o !== 'object') return;
+                                        if (Array.isArray(o)) {
+                                            const sample = o.find(i => i && typeof i === 'object' && (i.title || i.name || i.url || i.link || i.headline));
+                                            if (sample) {
+                                                o.forEach(i => items.push(i));
+                                                return;
+                                            }
+                                            o.forEach(i => walk3(i));
+                                        } else {
+                                            for (const k of Object.keys(o)) walk3(o[k]);
+                                        }
+                                    };
+                                    walk3(obj);
+                                } catch (e) {}
+                            }
+                        } catch (e) {}
+
+                        // 3.6) Try to detect fetch/XHR endpoints referenced in inline scripts and call a few to extract JSON lists
+                        try {
+                            const fetchRe = /fetch\(\s*['"]([^'"\)]+)['"]/gi;
+                            const matches = new Set();
+                            let fm;
+                            while ((fm = fetchRe.exec(rawHtml))) {
+                                matches.add(fm[1]);
+                                if (matches.size >= 6) break;
+                            }
+                            // Resolve and try up to 3 endpoints
+                            let tried = 0;
+                            for (const ep of matches) {
+                                if (tried >= 3) break;
+                                try {
+                                    let abs;
+                                    try { abs = new URL(ep, baseUrl).href; } catch (e) { continue; }
+                                    const r = await fetchWithHeaders(abs, { redirect: 'follow' });
+                                    if (!r.ok) continue;
+                                    const ctype = (r.headers.get('content-type') || '').toLowerCase();
+                                    if (ctype.includes('application/json') || ctype.includes('text/json') || ctype.includes('application/ld+json')) {
+                                        const j = await r.json();
+                                        // walk to find arrays
+                                        const found = [];
+                                        const walk4 = (o) => {
+                                            if (!o || typeof o !== 'object') return;
+                                            if (Array.isArray(o)) {
+                                                const sample = o.find(i => i && typeof i === 'object' && (i.title || i.name || i.url || i.link || i.headline));
+                                                if (sample) {
+                                                    o.forEach(i => found.push(i));
+                                                    return;
+                                                }
+                                                o.forEach(i => walk4(i));
+                                            } else {
+                                                for (const k of Object.keys(o)) walk4(o[k]);
+                                            }
+                                        };
+                                        walk4(j);
+                                        if (found.length > 0) {
+                                            found.forEach(i => items.push(i));
+                                            tried++;
+                                        }
+                                    }
+                                } catch (e) { }
+                            }
+                        } catch (e) {}
+
+                        // Normalize items to have title/link/description
+                        const normalized = items.map(it => {
+                            const title = it.title || it.name || it.headline || it['@title'] || '';
+                            const link = it.url || it.link || it.href || (it['@id'] ? it['@id'] : '') || '';
+                            const description = it.description || it.excerpt || it.summary || '';
+                            return { title: String(title).trim(), link: String(link).trim(), description: String(description).trim() };
+                        }).filter(i => i.title || i.link);
+
+                        if (normalized.length > 0) {
+                            // Build simple HTML list
+                            const rows = normalized.slice(0, 50).map(it => {
+                                const a = it.link ? `<a href="${it.link}" target="_blank" rel="noopener noreferrer">${escapeHtml(it.title)}</a>` : escapeHtml(it.title);
+                                const desc = it.description ? `<div style="color:#444;font-size:13px">${escapeHtml(it.description)}</div>` : '';
+                                return `<li style="margin:8px 0;padding:6px 0;border-bottom:1px solid #eee">${a}${desc}</li>`;
+                            }).join('');
+                            const out = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Preview - Extracted</title><style>body{font-family:system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;padding:16px;background:#fff}a{color:#0366d6;text-decoration:none}a:hover{text-decoration:underline}</style></head><body><h2>自动提取的条目 (${normalized.length})</h2><ul style="list-style:none;padding:0;margin:0">${rows}</ul></body></html>`;
+                            return out;
+                        }
+                    } catch (e) {
+                        // Ignore extraction errors
+                    }
+                    return null;
+                };
+
+                const extractedHtml = await tryExtractInline(html, targetUrl);
+                if (extractedHtml) {
+                    const newHeaders = new Headers(targetResp.headers);
+                    newHeaders.set('Content-Type', 'text/html; charset=utf-8');
+                    return new Response(extractedHtml, { status: 200, headers: newHeaders });
+                }
                 const proxyBase = new URL(request.url).origin + '/api/visual-proxy?url=';
 
                 // Remove existing scripts to prevent execution errors and CORS issues from SPA logic
@@ -664,7 +887,8 @@ export default {
                     headers: newHeaders
                 });
             } catch (e) {
-                return new Response("Proxy Error: " + e.message, { status: 500 });
+                const msg = e && e.message ? e.message : String(e);
+                return new Response(JSON.stringify({ error: 'Proxy Error', message: msg }), { status: 502, headers: { 'Content-Type': 'application/json' } });
             }
         }
 
@@ -968,38 +1192,9 @@ export default {
                     console.error('Status/Config update error:', e);
                 }
                 
-                // --- Partial Failure Notification Logic ---
-                if (domainConfig.notifications?.barkUrl && domainConfig.notifications?.notifyOnPartial && result.failures && result.failures.length > 0) {
-                    ctx.waitUntil((async () => {
-                        try {
-                            const statuses = await env.RSS_KV.get('route_statuses', { type: 'json' }) || {};
-                            const currentStatus = statuses[routeKey] || {};
-                            const lastPartialNotify = currentStatus.lastPartialNotify || 0;
-                            const now = Date.now();
-                            
-                            // Notify at most once every 24 hours for partial failures to avoid spam
-                            if (now - lastPartialNotify > 24 * 60 * 60 * 1000) {
-                                const failedUrls = result.failures.map(f => f.url).join('\n');
-                                await sendBarkNotification(
-                                    domainConfig.notifications.barkUrl,
-                                    `RSS Partial Failure: ${routeKey}`,
-                                    `Route: ${routeKey}\nSuccess: ${result.newUrl || config.url}\nFailed Nodes:\n${failedUrls}`,
-                                    'RSS-Warning',
-                                    request.url
-                                );
-                                
-                                // Update status
-                                currentStatus.lastPartialNotify = now;
-                                statuses[routeKey] = currentStatus;
-                                await env.RSS_KV.put('route_statuses', JSON.stringify(statuses));
-                            }
-                        } catch (e) {
-                            console.error('Partial notification error:', e);
-                        }
-                    })());
-                }
+                // Partial failure notifications removed: only route-level errors will trigger Bark notifications.
 
-            } else if (domainConfig.notifications?.barkUrl) {
+            } else if (domainConfig.notifications?.barkUrl && (config.notifications?.barkEnabled !== false)) {
                 // --- Error Notification Logic ---
                 ctx.waitUntil((async () => {
                     try {
@@ -1010,13 +1205,12 @@ export default {
                         
                         // Notify at most once every 6 hours
                         if (now - lastNotify > 6 * 60 * 60 * 1000) {
+                            // Build concise error summary. Per-node failure details are omitted by default.
                             let errorBody = `Route: ${routeKey}\nURL: ${config.url}\nError: ${result.message || 'Unknown error'}`;
-                            
-                            // Add detailed failure log if available
                             if (result.failures && result.failures.length > 0) {
-                                errorBody += '\n\nFailed Nodes:\n' + result.failures.map(f => `- ${f.url}: ${f.error}`).join('\n');
+                                errorBody += `\n\nFailed Nodes: ${result.failures.length} node(s) (details omitted)`;
                             }
-                            
+
                             await sendBarkNotification(
                                 domainConfig.notifications.barkUrl,
                                 `RSS Worker Error: ${routeKey}`,
