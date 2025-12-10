@@ -4,6 +4,7 @@ import { parseHTML } from 'linkedom';
 import { itemsToRss } from '../rss.js';
 import { fetchWithHeaders } from '../utils/fetcher.js';
 import { decodeText } from '../utils/helpers.js';
+import pLimit from 'p-limit';
 
 export default async function (params, config) {
     const { format = 'rss' } = params; // 默认RSS格式，由URL参数控制
@@ -235,49 +236,48 @@ export default async function (params, config) {
             });
         }
 
-        // 全文抓取功能
+        // 全文抓取功能（并发受控）
         if (fullText && fullTextSelector && items.length > 0) {
-            console.log(`[Full Text] Starting to fetch full content for ${items.length} items`);
-            
-            const fullTextItems = [];
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                if (!item.link) {
-                    fullTextItems.push(item);
-                    continue;
-                }
-                
+            // 支持两个可配置项：fullTextConcurrency（并发数，默认3）和 fullTextDelay（每个任务完成后的延迟，毫秒，默认0）
+            const concurrency = typeof config.fullTextConcurrency === 'number' && config.fullTextConcurrency > 0 ? config.fullTextConcurrency : 3;
+            const delayMs = typeof config.fullTextDelay === 'number' && config.fullTextDelay > 0 ? config.fullTextDelay : 0;
+
+            console.log(`[Full Text] Starting to fetch full content for ${items.length} items with concurrency=${concurrency}, delay=${delayMs}ms`);
+
+            const limit = pLimit(concurrency);
+
+            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+            const tasks = items.map((item) => limit(async () => {
+                if (!item.link) return item;
+
                 try {
                     // Ensure URL is absolute
                     let fetchUrl = item.link;
                     if (!fetchUrl.startsWith('http')) {
                         try {
                             fetchUrl = new URL(fetchUrl, url).href;
-                        } catch(e) {
+                        } catch (e) {
                             console.error(`[Full Text] Invalid URL: ${fetchUrl}`);
-                            fullTextItems.push(item);
-                            continue;
+                            return item;
                         }
                     }
 
                     console.log(`[Full Text] Fetching: ${fetchUrl}`);
                     const articleResp = await fetchWithHeaders(fetchUrl);
-                    
                     if (!articleResp.ok) {
                         console.error(`[Full Text] HTTP Error ${articleResp.status} for ${fetchUrl}`);
-                        fullTextItems.push(item);
-                        continue;
+                        return item;
                     }
-                    
+
                     const articleHtml = await decodeText(articleResp, encoding);
                     const $article = cheerio.load(articleHtml);
-                    
+
                     // 提取全文内容
                     let fullContent = '';
                     if (fullTextSelector) {
                         const contentEl = $article(fullTextSelector);
                         if (contentEl.length > 0) {
-                            // Handle multiple matches (e.g. selector is "p")
                             if (contentEl.length > 1) {
                                 fullContent = contentEl.map((i, el) => $article(el).html()).get().join('<br/>');
                             } else {
@@ -285,29 +285,24 @@ export default async function (params, config) {
                             }
                         }
                     }
-                    
-                    // 如果成功获取到全文，替换description
+
                     if (fullContent && fullContent.trim()) {
-                        fullTextItems.push({
-                            ...item,
-                            description: fullContent
-                        });
                         console.log(`[Full Text] Success: ${fetchUrl} (${fullContent.length} chars)`);
+                        const newItem = { ...item, description: fullContent };
+                        if (delayMs > 0) await sleep(delayMs);
+                        return newItem;
                     } else {
                         console.log(`[Full Text] No content found for: ${fetchUrl}`);
-                        fullTextItems.push(item);
-                    }
-                    
-                    // 添加延迟避免请求过快
-                    if (i < items.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 200));
+                        if (delayMs > 0) await sleep(delayMs);
+                        return item;
                     }
                 } catch (e) {
-                    console.error(`[Full Text] Error fetching ${item.link}:`, e.message);
-                    fullTextItems.push(item);
+                    console.error(`[Full Text] Error fetching ${item.link}:`, e && e.message ? e.message : e);
+                    return item;
                 }
-            }
-            
+            }));
+
+            const fullTextItems = await Promise.all(tasks);
             items = fullTextItems;
             console.log(`[Full Text] Completed. ${items.length} items processed.`);
         }

@@ -240,6 +240,10 @@ export default {
 
         // --- Visual Proxy ---
         if (path === '/api/visual-proxy') {
+            // Require authentication similar to /api/proxy to avoid open proxy abuse
+            if (!checkAuth(request, env)) {
+                return new Response('Unauthorized', { status: 401 });
+            }
             const targetUrl = url.searchParams.get('url');
             if (!targetUrl) return new Response("Missing url", { status: 400 });
 
@@ -1106,49 +1110,8 @@ export default {
             return response
         }
 
-        const func = funcs[paramName]  // 动态调用
-        if (typeof func !== "function") {
-            return new Response("未知参数：" + paramName, { status: 400 })
-        }
-
-        // 从配置中获取路由的特定配置，或使用默认配置
-        const routeConfig = cacheConfig.routes[paramName] || cacheConfig.default;
-
-        // 将所有需要的参数打包成一个对象
-        const params = {
-            param: paramValue,
-            workerUrl: new URL(request.url).origin,
-            format: format,
-            maxItems: routeConfig.maxItems || cacheConfig.default.maxItems, // 优先用路由配置，否则用全局默认
-        };
-
-        const result = await func(params);
-
-        // 从配置中获取缓存时间
-        const cacheTime = result.isError ? routeConfig.error : routeConfig.success;
-        const rss = result.data;
-
-
-        const contentTypes = {
-            rss: "application/rss+xml; charset=utf-8",
-            atom: "application/atom+xml; charset=utf-8",
-            json: "application/json; charset=utf-8"
-        }
-
-        response = new Response(rss, {
-            headers: { 
-                "content-type": contentTypes[format] || contentTypes.rss,
-                "Cache-Control": `public, max-age=${cacheTime}`, // 使用从配置中获取的缓存时间
-                "X-Cache-Status": "MISS", // 标识这是新生成的内容
-                "Date": new Date().toUTCString(), // 添加生成时间
-                "X-Generated-At": new Date().toISOString() // 生成时间戳
-            }
-        })
-
-        // 存储到缓存
-        await cache.put(cacheKey, response.clone())
-        
-        return response
+        // 未知的硬编码路由参数已被移除。请使用 KV 配置的自定义路由(`?custom=...`)或在后台添加路由。
+        return new Response(`未知的请求参数: ${paramName}。请检查 URL 或在后台配置路由。`, { status: 404 });
 
     }
 }
