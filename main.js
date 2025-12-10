@@ -194,6 +194,132 @@ export default {
             }
         }
 
+        // --- Scan/AJAX Helper APIs ---
+        // 用于分析目标页面中的脚本，提取可能的 AJAX / fetch 端点并通过代理获取数据
+        if (path === '/api/scan-ajax') {
+            if (request.method !== 'GET') return new Response('Method not allowed', { status: 405 });
+            // Require admin auth to avoid abuse
+            if (!checkAuth(request, env)) return new Response('Unauthorized', { status: 401 });
+
+            const target = url.searchParams.get('url');
+            if (!target) return new Response(JSON.stringify({ error: 'Missing url parameter' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+
+            try {
+                // Fetch the target page
+                const domainConfig = env.RSS_KV ? await env.RSS_KV.get('domain_config', { type: 'json' }) : null;
+                const resp = await fetchWithRetry(target, { redirect: 'follow' }, domainConfig?.groups || []);
+                const html = await decodeText(resp, undefined);
+
+                // Collect inline scripts and external script URLs
+                const scriptSrcs = [];
+                const inlineScripts = [];
+
+                // Simple regexes to extract <script src=...> and inline scripts
+                for (const m of html.matchAll(/<script\b[^>]*src=(['\"])(.*?)\1[^>]*>/gi)) {
+                    try { scriptSrcs.push(new URL(m[2], target).href); } catch(e) { scriptSrcs.push(m[2]); }
+                }
+                for (const m of html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)) {
+                    const content = m[1].trim();
+                    if (content) inlineScripts.push(content);
+                }
+
+                // Limit number of external scripts fetched
+                const maxFetchScripts = 6;
+                const toFetch = scriptSrcs.slice(0, maxFetchScripts);
+
+                const fetchedScripts = await Promise.all(toFetch.map(async (s) => {
+                    try {
+                        const r = await fetchWithRetry(s, { redirect: 'follow' }, domainConfig?.groups || []);
+                        if (!r.ok) return '';
+                        return await decodeText(r, undefined);
+                    } catch (e) { return ''; }
+                }));
+
+                const allScripts = inlineScripts.concat(fetchedScripts.filter(Boolean));
+
+                // Patterns to extract candidate endpoints
+                const candidates = new Set();
+                const addCandidate = (raw) => {
+                    if (!raw) return;
+                    raw = raw.trim().replace(/^["'`]+|["'`]+$/g, '');
+                    // Ignore javascript: pseudo
+                    if (raw.startsWith('javascript:')) return;
+                    try {
+                        // Normalize relative URLs
+                        const abs = new URL(raw, target).href;
+                        // Heuristic: focus on API-like paths or JSON endpoints
+                        if (abs.includes('/api/') || abs.endsWith('.json') || abs.includes('?') || /\/v\d+\//.test(abs)) {
+                            candidates.add(abs);
+                        } else {
+                            // allow if it's same-origin relative path
+                            const u = new URL(abs);
+                            const base = new URL(target);
+                            if (u.origin === base.origin) candidates.add(abs);
+                        }
+                    } catch (e) {
+                        // If can't make absolute, still add raw if it looks like a path
+                        if (/^\/?[a-zA-Z0-9_\-\/]+(\?|$)/.test(raw)) {
+                            try { candidates.add(new URL(raw, target).href); } catch(e) {}
+                        }
+                    }
+                };
+
+                const simpleUrlRegex = /fetch\(\s*['\"]([^'\"]+)['\"]/gi;
+                const ajaxRegex = /\$.ajax\(\s*{[\s\S]*?url\s*:\s*['\"]([^'\"]+)['\"]/gi;
+                const xhrRegex = /XMLHttpRequest\.open\([^,]+,\s*['\"]([^'\"]+)['\"]/gi;
+                const axiosRegex = /axios\.(?:get|post)\(\s*['\"]([^'\"]+)['\"]/gi;
+                const generalUrlRegex = /https?:\/\/[^\s'"<>\)]+/gi;
+
+                for (const s of allScripts) {
+                    if (!s) continue;
+                    for (const m of s.matchAll(simpleUrlRegex)) addCandidate(m[1]);
+                    for (const m of s.matchAll(ajaxRegex)) addCandidate(m[1]);
+                    for (const m of s.matchAll(xhrRegex)) addCandidate(m[1]);
+                    for (const m of s.matchAll(axiosRegex)) addCandidate(m[2] || m[1]);
+                    for (const m of s.matchAll(generalUrlRegex)) addCandidate(m[0]);
+                    // Also look for relative-looking endpoints: '/api/...' or '/v1/..'
+                    for (const m of s.matchAll(/(\/api\/[^'"\)\s;]+)/gi)) addCandidate(m[1]);
+                }
+
+                const list = Array.from(candidates);
+                return new Response(JSON.stringify({ url: target, candidates: list.slice(0, 200), scriptCount: allScripts.length }), { headers: { 'Content-Type': 'application/json' } });
+            } catch (e) {
+                return new Response(JSON.stringify({ error: e && e.message ? e.message : String(e) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+            }
+        }
+
+        if (path === '/api/fetch-ajax') {
+            if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+            if (!checkAuth(request, env)) return new Response('Unauthorized', { status: 401 });
+
+            try {
+                const body = await request.json();
+                const target = body.url;
+                if (!target) return new Response(JSON.stringify({ error: 'Missing url in body' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+
+                const opts = { method: body.method || 'GET', headers: body.headers || {}, body: body.body };
+                const domainConfig = env.RSS_KV ? await env.RSS_KV.get('domain_config', { type: 'json' }) : null;
+                const resp = await fetchWithRetry(target, opts, domainConfig?.groups || []);
+
+                const contentType = (resp.headers.get('content-type') || '').toLowerCase();
+                const text = await resp.text();
+
+                // Auto-parse JSON when requested or when content-type is application/json
+                if ((body.parse === 'json') || contentType.includes('application/json')) {
+                    try {
+                        const parsed = JSON.parse(text);
+                        return new Response(JSON.stringify({ status: resp.status, headers: Object.fromEntries(resp.headers), data: parsed }), { headers: { 'Content-Type': 'application/json' } });
+                    } catch (e) {
+                        return new Response(JSON.stringify({ status: resp.status, headers: Object.fromEntries(resp.headers), data: text, parseError: e.message }), { headers: { 'Content-Type': 'application/json' } });
+                    }
+                }
+
+                return new Response(JSON.stringify({ status: resp.status, headers: Object.fromEntries(resp.headers), data: text }), { headers: { 'Content-Type': 'application/json' } });
+            } catch (e) {
+                return new Response(JSON.stringify({ error: e && e.message ? e.message : String(e) }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+            }
+        }
+
         // --- API for Preview ---
         if (path === '/api/preview') {
             if (request.method !== 'POST') return new Response("Method not allowed", { status: 405 });
