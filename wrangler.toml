@@ -1,6 +1,7 @@
 name = "worker_rss"
 main = "main.js"
 compatibility_date = "2025-03-12"
+compatibility_flags = ["nodejs_compat"]
 
 [observability.logs]
 enabled = true

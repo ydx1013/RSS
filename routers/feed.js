@@ -17,6 +17,7 @@ export default async function (params, config) {
         dateSelector,
         fullText = false,
         fullTextSelector = '',
+        encoding = 'auto',
         domainConfig // Injected from main.js
     } = config;
 
@@ -46,7 +47,7 @@ export default async function (params, config) {
             throw new Error(`HTTP Error: ${response.status}`);
         }
 
-        const text = await response.text();
+        const text = await decodeText(response, encoding);
         log(`[Feed] Fetched XML, length: ${text.length}`);
         
         let items = [];
@@ -207,7 +208,7 @@ export default async function (params, config) {
                         continue;
                     }
                     
-                    const articleHtml = await decodeText(articleResp);
+                    const articleHtml = await decodeText(articleResp, encoding);
                     const $article = cheerio.load(articleHtml);
                     
                     // Extract full content

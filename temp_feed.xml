@@ -1,524 +1,0 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <title>èèçblog</title>
-  <description>feedId:66752007674635274+userId:42189526997525504</description>
-  <follow_challenge>
-    <feedId>66752007674635274</feedId>
-    <userId>42189526997525504</userId>
-  </follow_challenge>
-  
-  <subtitle>èæ²æå¡ï¼éèæè£</subtitle>
-  <link href="https://laosu.tech/atom.xml" rel="self"/>
-  
-  <link href="https://laosu.tech/"/>
-  <updated>2025-12-08T02:16:01.693Z</updated>
-  <id>https://laosu.tech/</id>
-  
-  <author>
-    <name>æ¨æµ¦èè</name>
-    
-  </author>
-  
-  <generator uri="https://hexo.io/">Hexo</generator>
-  
-  <entry>
-    <title>ç½çé¾æ¥æ£æµç³»ç»PanCheck</title>
-    <link href="https://laosu.tech/2025/12/08/%E7%BD%91%E7%9B%98%E9%93%BE%E6%8E%A5%E6%A3%80%E6%B5%8B%E7%B3%BB%E7%BB%9FPanCheck/"/>
-    <id>https://laosu.tech/2025/12/08/%E7%BD%91%E7%9B%98%E9%93%BE%E6%8E%A5%E6%A3%80%E6%B5%8B%E7%B3%BB%E7%BB%9FPanCheck/</id>
-    <published>2025-12-08T02:00:00.000Z</published>
-    <updated>2025-12-08T02:16:01.693Z</updated>
-    
-    
-    <summary type="html">PanCheck æ¯ä¸ä¸ªåè½å¼ºå¤§çç½çé¾æ¥æææ§æ£æµç³»ç»ï¼æ¯ææ¹éæ£æµå¤ç§ä¸»æµç½çå¹³å°çåäº«é¾æ¥æ¯å¦ææã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="ç½ç" scheme="https://laosu.tech/tags/%E7%BD%91%E7%9B%98/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>å®å¨çæ¶æ¯ä¼ éååä½å·¥å·Virola Messenger</title>
-    <link href="https://laosu.tech/2025/12/07/%E5%AE%89%E5%85%A8%E7%9A%84%E6%B6%88%E6%81%AF%E4%BC%A0%E9%80%92%E5%92%8C%E5%8D%8F%E4%BD%9C%E5%B7%A5%E5%85%B7Virola%20Messenger/"/>
-    <id>https://laosu.tech/2025/12/07/%E5%AE%89%E5%85%A8%E7%9A%84%E6%B6%88%E6%81%AF%E4%BC%A0%E9%80%92%E5%92%8C%E5%8D%8F%E4%BD%9C%E5%B7%A5%E5%85%B7Virola%20Messenger/</id>
-    <published>2025-12-07T02:00:00.000Z</published>
-    <updated>2025-12-08T02:16:01.666Z</updated>
-    
-    
-    <summary type="html">Virola Messenger æ¯ä¸æ¬¾èªæç®¡çæ²éä¸åä½å·¥å·ï¼æ¨å¨ä¸ºä¼ä¸åä¸ªäººæä¾å®å¨ãè½»éçº§çå³æ¶æ¶æ¯åéæåè½ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="IM" scheme="https://laosu.tech/tags/IM/"/>
-    
-    <category term="å³æ¶éè®¯" scheme="https://laosu.tech/tags/%E5%8D%B3%E6%97%B6%E9%80%9A%E8%AE%AF/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>RSSéè¯»å¨ä¸ç¥è¯ç®¡çå©å¨Glean</title>
-    <link href="https://laosu.tech/2025/12/04/RSS%E9%98%85%E8%AF%BB%E5%99%A8%E4%B8%8E%E7%9F%A5%E8%AF%86%E7%AE%A1%E7%90%86%E5%88%A9%E5%99%A8Glean/"/>
-    <id>https://laosu.tech/2025/12/04/RSS%E9%98%85%E8%AF%BB%E5%99%A8%E4%B8%8E%E7%9F%A5%E8%AF%86%E7%AE%A1%E7%90%86%E5%88%A9%E5%99%A8Glean/</id>
-    <published>2025-12-04T03:30:00.000Z</published>
-    <updated>2025-12-08T02:16:01.647Z</updated>
-    
-    
-    <summary type="html">Gleanï¼æ¾çµï¼æ¯ä¸æ¬¾èªæç®¡ç RSS éè¯»å¨åä¸ªäººç¥è¯ç®¡çå·¥å·ï¼å¸®å©éåº¦ä¿¡æ¯æ¶è´¹èéè¿æºè½ RSS èåé«æç®¡çéè¯»ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="RSS" scheme="https://laosu.tech/tags/RSS/"/>
-    
-    <category term="ç¥è¯ç®¡ç" scheme="https://laosu.tech/tags/%E7%9F%A5%E8%AF%86%E7%AE%A1%E7%90%86/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>é®ä»¶å½æ¡£ä¸å¨ææ£ç´¢å©å¨Bichon</title>
-    <link href="https://laosu.tech/2025/11/30/%E9%82%AE%E4%BB%B6%E5%BD%92%E6%A1%A3%E4%B8%8E%E5%85%A8%E6%96%87%E6%A3%80%E7%B4%A2%E5%88%A9%E5%99%A8Bichon/"/>
-    <id>https://laosu.tech/2025/11/30/%E9%82%AE%E4%BB%B6%E5%BD%92%E6%A1%A3%E4%B8%8E%E5%85%A8%E6%96%87%E6%A3%80%E7%B4%A2%E5%88%A9%E5%99%A8Bichon/</id>
-    <published>2025-11-30T05:40:00.000Z</published>
-    <updated>2025-12-08T02:16:01.703Z</updated>
-    
-    
-    <summary type="html">Bichonæ¯ä¸ä¸ªè½»éçº§ãé«æ§è½ç Rust çµå­é®ä»¶å½æ¡£ç³»ç»ï¼èªå¸¦ WebUIï¼æ¯æå¨ææç´¢åå¤è´¦æ·ç®¡çã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="é®ä»¶" scheme="https://laosu.tech/tags/%E9%82%AE%E4%BB%B6/"/>
-    
-    <category term="email" scheme="https://laosu.tech/tags/email/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>AIé©±å¨çå¾è¡¨çæå¨Next-AI-Draw.io</title>
-    <link href="https://laosu.tech/2025/11/29/AI%E9%A9%B1%E5%8A%A8%E7%9A%84%E5%9B%BE%E8%A1%A8%E7%94%9F%E6%88%90%E5%99%A8Next-AI-Draw.io/"/>
-    <id>https://laosu.tech/2025/11/29/AI%E9%A9%B1%E5%8A%A8%E7%9A%84%E5%9B%BE%E8%A1%A8%E7%94%9F%E6%88%90%E5%99%A8Next-AI-Draw.io/</id>
-    <published>2025-11-29T04:50:00.000Z</published>
-    <updated>2025-12-08T02:16:01.639Z</updated>
-    
-    
-    <summary type="html">Next AI Draw.io æ¯ä¸ä¸ªå° AI åè½ä¸ draw.io å¾è¡¨éæç web åºç¨ç¨åºï¼åè®¸æ¨éè¿èªç¶è¯­è¨å½ä»¤åäººå·¥æºè½è¾å©å¯è§ååå»ºãä¿®æ¹åå¢å¼ºå¾è¡¨ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="AI" scheme="https://laosu.tech/tags/AI/"/>
-    
-    <category term="äººå·¥æºè½" scheme="https://laosu.tech/tags/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD/"/>
-    
-    <category term="draw.io" scheme="https://laosu.tech/tags/draw-io/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>CalDAVç½ç»æå¡å¨DAViCal</title>
-    <link href="https://laosu.tech/2025/11/27/CalDAV%E7%BD%91%E7%BB%9C%E6%9C%8D%E5%8A%A1%E5%99%A8DAViCal/"/>
-    <id>https://laosu.tech/2025/11/27/CalDAV%E7%BD%91%E7%BB%9C%E6%9C%8D%E5%8A%A1%E5%99%A8DAViCal/</id>
-    <published>2025-11-27T02:00:00.000Z</published>
-    <updated>2025-12-08T02:16:01.640Z</updated>
-    
-    
-    <summary type="html">DAViCal æ¯ä¸ä¸ªç¨äºæ¥åå±äº«çæå¡å¨ï¼åºäº CalDAV åè®®ï¼è½å°æ¥åèµæºï¼iCalendar æ ¼å¼ï¼å­å¨å¨è¿ç¨å±äº«æå¡å¨ä¸ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="CalDAV" scheme="https://laosu.tech/tags/CalDAV/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>ä¸ä½åå®¶åº­å®éªå®¤ä»ªè¡¨çDashwise</title>
-    <link href="https://laosu.tech/2025/11/26/%E4%B8%80%E4%BD%93%E5%8C%96%E5%AE%B6%E5%BA%AD%E5%AE%9E%E9%AA%8C%E5%AE%A4%E4%BB%AA%E8%A1%A8%E7%9B%98Dashwise/"/>
-    <id>https://laosu.tech/2025/11/26/%E4%B8%80%E4%BD%93%E5%8C%96%E5%AE%B6%E5%BA%AD%E5%AE%9E%E9%AA%8C%E5%AE%A4%E4%BB%AA%E8%A1%A8%E7%9B%98Dashwise/</id>
-    <published>2025-11-26T01:30:00.000Z</published>
-    <updated>2025-12-08T02:16:01.650Z</updated>
-    
-    
-    <summary type="html">Dashwise æ¯ä¸ä¸ªåè½ä¸°å¯ãå¤è§ç²¾ç¾çèªæç®¡ä¸»é¡µä»ªè¡¨çï¼æ¨å¨æä¸ºæ¨æææå¡ååºç¨ç¨åºçä¸­å¿æ¢çº½ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="å¯¼èª" scheme="https://laosu.tech/tags/%E5%AF%BC%E8%88%AA/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>ExcaliDashï¼å¸¦ç®¡çé¢æ¿çExcalidraw</title>
-    <link href="https://laosu.tech/2025/11/25/ExcaliDash%EF%BC%9A%E5%B8%A6%E7%AE%A1%E7%90%86%E9%9D%A2%E6%9D%BF%E7%9A%84Excalidraw/"/>
-    <id>https://laosu.tech/2025/11/25/ExcaliDash%EF%BC%9A%E5%B8%A6%E7%AE%A1%E7%90%86%E9%9D%A2%E6%9D%BF%E7%9A%84Excalidraw/</id>
-    <published>2025-11-25T01:00:00.000Z</published>
-    <updated>2025-12-08T02:16:01.642Z</updated>
-    
-    
-    <summary type="html">ExcaliDash æ¯ä¸ä¸ªèªæç®¡çä»ªè¡¨çåç»ç»å¨ï¼ä¸ä¸º Excalidraw è®¾è®¡ï¼æä¾å®æ¶åä½åè½ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="ç½æ¿" scheme="https://laosu.tech/tags/%E7%99%BD%E6%9D%BF/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>AIé©±å¨çèæ¯å»é¤å·¥å·withoutBG</title>
-    <link href="https://laosu.tech/2025/11/18/AI%E9%A9%B1%E5%8A%A8%E7%9A%84%E8%83%8C%E6%99%AF%E5%8E%BB%E9%99%A4%E5%B7%A5%E5%85%B7withoutBG/"/>
-    <id>https://laosu.tech/2025/11/18/AI%E9%A9%B1%E5%8A%A8%E7%9A%84%E8%83%8C%E6%99%AF%E5%8E%BB%E9%99%A4%E5%B7%A5%E5%85%B7withoutBG/</id>
-    <published>2025-11-18T06:00:00.000Z</published>
-    <updated>2025-12-08T02:16:01.639Z</updated>
-    
-    
-    <summary type="html">WithoutBG æ¯ä¸ä¸ªå¼æºçãç± AI é©±å¨çå·¥å·ï¼å¯ä»¥è½»æ¾å°ä»ä»»ä½å¾åä¸­å é¤èæ¯ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="AI" scheme="https://laosu.tech/tags/AI/"/>
-    
-    <category term="å·¥å·" scheme="https://laosu.tech/tags/%E5%B7%A5%E5%85%B7/"/>
-    
-    <category term="å¾ç" scheme="https://laosu.tech/tags/%E5%9B%BE%E7%89%87/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>éç§ä¼åçæ¥è®°åºç¨Journiv</title>
-    <link href="https://laosu.tech/2025/11/15/%E9%9A%90%E7%A7%81%E4%BC%98%E5%85%88%E7%9A%84%E6%97%A5%E8%AE%B0%E5%BA%94%E7%94%A8Journiv/"/>
-    <id>https://laosu.tech/2025/11/15/%E9%9A%90%E7%A7%81%E4%BC%98%E5%85%88%E7%9A%84%E6%97%A5%E8%AE%B0%E5%BA%94%E7%94%A8Journiv/</id>
-    <published>2025-11-15T02:30:00.000Z</published>
-    <updated>2025-12-08T02:16:01.703Z</updated>
-    
-    
-    <summary type="html">Journiv æ¯ä¸ä¸ªç¾è§ãéç§ä¼åçèªæç®¡æ¥è®°åºç¨ï¼æ¯ææç»ªè¿½è¸ªãæ¯æ¥æç¤ºåå¼ºå¤§æ´å¯åè½ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="æ¥è®°" scheme="https://laosu.tech/tags/%E6%97%A5%E8%AE%B0/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>AIé©±å¨çå¨çº¿ç»å¾å·¥å·Smart-Excalidraw-Next</title>
-    <link href="https://laosu.tech/2025/11/12/AI%E9%A9%B1%E5%8A%A8%E7%9A%84%E5%9C%A8%E7%BA%BF%E7%BB%98%E5%9B%BE%E5%B7%A5%E5%85%B7Smart-Excalidraw-Next/"/>
-    <id>https://laosu.tech/2025/11/12/AI%E9%A9%B1%E5%8A%A8%E7%9A%84%E5%9C%A8%E7%BA%BF%E7%BB%98%E5%9B%BE%E5%B7%A5%E5%85%B7Smart-Excalidraw-Next/</id>
-    <published>2025-11-12T02:40:00.000Z</published>
-    <updated>2025-12-08T02:16:01.639Z</updated>
-    
-    
-    <summary type="html">Smart-Excalidraw-Next æ¯ä¸æ¬¾å¼æºçå¨çº¿ç»å¾å·¥å·ï¼å©ç¨ AI å¤§è¯­è¨æ¨¡åï¼éè¿èªç¶è¯­è¨å¿«éç»å¶ä¸ä¸ãç¾è§çå¾è¡¨ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="AI" scheme="https://laosu.tech/tags/AI/"/>
-    
-    <category term="äººå·¥æºè½" scheme="https://laosu.tech/tags/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD/"/>
-    
-    <category term="ç½æ¿" scheme="https://laosu.tech/tags/%E7%99%BD%E6%9D%BF/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>ç®åç´è§çç¬è®°ç®¡çå¨Poznote</title>
-    <link href="https://laosu.tech/2025/11/11/%E7%AE%80%E5%8D%95%E7%9B%B4%E8%A7%82%E7%9A%84%E7%AC%94%E8%AE%B0%E7%AE%A1%E7%90%86%E5%99%A8Poznote/"/>
-    <id>https://laosu.tech/2025/11/11/%E7%AE%80%E5%8D%95%E7%9B%B4%E8%A7%82%E7%9A%84%E7%AC%94%E8%AE%B0%E7%AE%A1%E7%90%86%E5%99%A8Poznote/</id>
-    <published>2025-11-11T02:00:00.000Z</published>
-    <updated>2025-12-08T02:16:01.691Z</updated>
-    
-    
-    <summary type="html">Poznote æ¯ä¸æ¬¾è½»éçº§ä½åè½å¼ºå¤§çç¬è®°ç½ç»åºç¨ç¨åºã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="ç¬è®°" scheme="https://laosu.tech/tags/%E7%AC%94%E8%AE%B0/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>å¤åè½èæåæå·¥å·BettaFish</title>
-    <link href="https://laosu.tech/2025/11/10/%E5%A4%9A%E5%8A%9F%E8%83%BD%E8%88%86%E6%83%85%E5%88%86%E6%9E%90%E5%B7%A5%E5%85%B7BettaFish/"/>
-    <id>https://laosu.tech/2025/11/10/%E5%A4%9A%E5%8A%9F%E8%83%BD%E8%88%86%E6%83%85%E5%88%86%E6%9E%90%E5%B7%A5%E5%85%B7BettaFish/</id>
-    <published>2025-11-10T02:30:00.000Z</published>
-    <updated>2025-12-08T02:16:01.665Z</updated>
-    
-    
-    <summary type="html">BettaFishï¼å¾®èï¼æ¯ä¸ä¸ªåæ°çå¤æºè½ä½èæåæç³»ç»ï¼è½å¸®å©ç¨æ·æç ´ä¿¡æ¯è§æ¿ï¼è¿åèæåè²ï¼é¢æµæªæ¥èµ°åï¼å¹¶è¾å©å³ç­ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="AI" scheme="https://laosu.tech/tags/AI/"/>
-    
-    <category term="äººå·¥æºè½" scheme="https://laosu.tech/tags/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD/"/>
-    
-    <category term="èæåæ" scheme="https://laosu.tech/tags/%E8%88%86%E6%83%85%E5%88%86%E6%9E%90/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>ç»æç¬è®°åºç¨ç¨åºAlexandrie</title>
-    <link href="https://laosu.tech/2025/11/08/%E7%BB%88%E6%9E%81%E7%AC%94%E8%AE%B0%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8FAlexandrie/"/>
-    <id>https://laosu.tech/2025/11/08/%E7%BB%88%E6%9E%81%E7%AC%94%E8%AE%B0%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8FAlexandrie/</id>
-    <published>2025-11-08T03:30:00.000Z</published>
-    <updated>2025-12-08T02:16:01.692Z</updated>
-    
-    
-    <summary type="html">Alexandrie æ¯ä¸ä¸ªç°ä»£ãä¼éãå¼æºç Markdown ç¬è®°åºç¨ç¨åºï¼ä¸ä¸ºå­¦çååä½èè®¾è®¡ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="ç¬è®°" scheme="https://laosu.tech/tags/%E7%AC%94%E8%AE%B0/"/>
-    
-    <category term="markdown" scheme="https://laosu.tech/tags/markdown/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>AIæºè½å°è¯´åä½å©æMuMuAINovel</title>
-    <link href="https://laosu.tech/2025/11/05/AI%E6%99%BA%E8%83%BD%E5%B0%8F%E8%AF%B4%E5%88%9B%E4%BD%9C%E5%8A%A9%E6%89%8BMuMuAINovel/"/>
-    <id>https://laosu.tech/2025/11/05/AI%E6%99%BA%E8%83%BD%E5%B0%8F%E8%AF%B4%E5%88%9B%E4%BD%9C%E5%8A%A9%E6%89%8BMuMuAINovel/</id>
-    <published>2025-11-05T07:45:00.000Z</published>
-    <updated>2025-12-08T02:16:01.638Z</updated>
-    
-    
-    <summary type="html">MuMuAINovel ä¸æ¬¾åºäº AI çæºè½å°è¯´åä½å©æï¼è½å¸®å©ä½ è½»æ¾åä½ç²¾å½©æäºã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="AI" scheme="https://laosu.tech/tags/AI/"/>
-    
-    <category term="äººå·¥æºè½" scheme="https://laosu.tech/tags/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD/"/>
-    
-    <category term="å°è¯´" scheme="https://laosu.tech/tags/%E5%B0%8F%E8%AF%B4/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>å¼æºç¥è¯åºæ­å»ºç³»ç»PandaWiki</title>
-    <link href="https://laosu.tech/2025/11/02/%E5%BC%80%E6%BA%90%E7%9F%A5%E8%AF%86%E5%BA%93%E6%90%AD%E5%BB%BA%E7%B3%BB%E7%BB%9FPandaWiki/"/>
-    <id>https://laosu.tech/2025/11/02/%E5%BC%80%E6%BA%90%E7%9F%A5%E8%AF%86%E5%BA%93%E6%90%AD%E5%BB%BA%E7%B3%BB%E7%BB%9FPandaWiki/</id>
-    <published>2025-11-02T05:00:00.000Z</published>
-    <updated>2025-12-08T02:16:01.673Z</updated>
-    
-    
-    <summary type="html">PandaWiki æ¯ä¸ä¸ªç± AI å¤§æ¨¡åé©±å¨çå¼æºç¥è¯åºæ­å»ºç³»ç»ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="AI" scheme="https://laosu.tech/tags/AI/"/>
-    
-    <category term="äººå·¥æºè½" scheme="https://laosu.tech/tags/%E4%BA%BA%E5%B7%A5%E6%99%BA%E8%83%BD/"/>
-    
-    <category term="wiki" scheme="https://laosu.tech/tags/wiki/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>æµåªä½ç®¡çå·¥å·Dispatcharr</title>
-    <link href="https://laosu.tech/2025/10/31/%E6%B5%81%E5%AA%92%E4%BD%93%E7%AE%A1%E7%90%86%E5%B7%A5%E5%85%B7Dispatcharr/"/>
-    <id>https://laosu.tech/2025/10/31/%E6%B5%81%E5%AA%92%E4%BD%93%E7%AE%A1%E7%90%86%E5%B7%A5%E5%85%B7Dispatcharr/</id>
-    <published>2025-10-31T02:00:00.000Z</published>
-    <updated>2025-12-08T02:16:01.683Z</updated>
-    
-    
-    <summary type="html">Dispatcharr æ¯ä¸ä¸ªå¼æºçå¼ºå¤§å·¥å·ï¼ç¨äºä¼éèå¯æ§å°ç®¡ç IPTV æµå EPGï¼çµå­èç®æåï¼æ°æ®ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="å¤åªä½" scheme="https://laosu.tech/tags/%E5%A4%9A%E5%AA%92%E4%BD%93/"/>
-    
-    <category term="IPTV" scheme="https://laosu.tech/tags/IPTV/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>migu_videoï¼å¨æ¬å°é¨ç½²åªåè§é¢æå¡</title>
-    <link href="https://laosu.tech/2025/10/28/migu_video%EF%BC%9A%E5%9C%A8%E6%9C%AC%E5%9C%B0%E9%83%A8%E7%BD%B2%E5%92%AA%E5%92%95%E8%A7%86%E9%A2%91%E6%9C%8D%E5%8A%A1/"/>
-    <id>https://laosu.tech/2025/10/28/migu_video%EF%BC%9A%E5%9C%A8%E6%9C%AC%E5%9C%B0%E9%83%A8%E7%BD%B2%E5%92%AA%E5%92%95%E8%A7%86%E9%A2%91%E6%9C%8D%E5%8A%A1/</id>
-    <published>2025-10-28T03:00:00.000Z</published>
-    <updated>2025-12-08T02:16:01.649Z</updated>
-    
-    
-    <summary type="html">migu_video è½éè¿ Docker ä¸é®é¨ç½²åªåè§é¢æå¡ï¼äº«åç¨³å®æµçãåè´¹é«æ¸ç IPTV çµè§ä½éªã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="å¤åªä½" scheme="https://laosu.tech/tags/%E5%A4%9A%E5%AA%92%E4%BD%93/"/>
-    
-    <category term="IPTV" scheme="https://laosu.tech/tags/IPTV/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>OmniBoxï¼ä½ çä¸ä¸ä»£å®¶åº­å½±è§ä¸­å¿</title>
-    <link href="https://laosu.tech/2025/10/26/OmniBox%EF%BC%9A%E4%BD%A0%E7%9A%84%E4%B8%8B%E4%B8%80%E4%BB%A3%E5%AE%B6%E5%BA%AD%E5%BD%B1%E8%A7%86%E4%B8%AD%E5%BF%83/"/>
-    <id>https://laosu.tech/2025/10/26/OmniBox%EF%BC%9A%E4%BD%A0%E7%9A%84%E4%B8%8B%E4%B8%80%E4%BB%A3%E5%AE%B6%E5%BA%AD%E5%BD%B1%E8%A7%86%E4%B8%AD%E5%BF%83/</id>
-    <published>2025-10-26T02:00:00.000Z</published>
-    <updated>2025-12-08T02:16:01.646Z</updated>
-    
-    
-    <summary type="html">OmniBoxæ¯ä¸ä¸ªå½±è§ç»¼åç«ï¼èåäºééç«ãç½çãIPTVãç´æ­ç­å¤ç§èµæºï¼æ¨å¨æä¾ä¸ç«å¼çè§å½±è§£å³æ¹æ¡ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="å¤åªä½" scheme="https://laosu.tech/tags/%E5%A4%9A%E5%AA%92%E4%BD%93/"/>
-    
-    <category term="IPTV" scheme="https://laosu.tech/tags/IPTV/"/>
-    
-  </entry>
-  
-  <entry>
-    <title>å®ç¨æä»¶æ ¼å¼è½¬æ¢ç¨åºVERT</title>
-    <link href="https://laosu.tech/2025/10/25/%E5%AE%9E%E7%94%A8%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%BD%AC%E6%8D%A2%E7%A8%8B%E5%BA%8FVERT/"/>
-    <id>https://laosu.tech/2025/10/25/%E5%AE%9E%E7%94%A8%E6%96%87%E4%BB%B6%E6%A0%BC%E5%BC%8F%E8%BD%AC%E6%8D%A2%E7%A8%8B%E5%BA%8FVERT/</id>
-    <published>2025-10-25T03:00:00.000Z</published>
-    <updated>2025-12-08T02:16:01.667Z</updated>
-    
-    
-    <summary type="html">VERT æ¯ä¸ä¸ªå¼æºçä¸ä¸ä»£æä»¶è½¬æ¢å¨ï¼æ¯æè¶è¿ 250 ç§æä»¶æ ¼å¼çè½¬æ¢ï¼åæ¬å¾åãé³é¢ãææ¡£åè§é¢ã</summary>
-    
-    
-    
-    <category term="åç§æè¾" scheme="https://laosu.tech/categories/%E5%90%84%E7%A7%8D%E6%8A%98%E8%85%BE/"/>
-    
-    
-    <category term="ç¾¤æ" scheme="https://laosu.tech/tags/%E7%BE%A4%E6%99%96/"/>
-    
-    <category term="docker" scheme="https://laosu.tech/tags/docker/"/>
-    
-    <category term="å·¥å·" scheme="https://laosu.tech/tags/%E5%B7%A5%E5%85%B7/"/>
-    
-    <category term="æ ¼å¼è½¬æ¢" scheme="https://laosu.tech/tags/%E6%A0%BC%E5%BC%8F%E8%BD%AC%E6%8D%A2/"/>
-    
-  </entry>
-  
-</feed>

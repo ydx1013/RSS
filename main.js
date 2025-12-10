@@ -7,6 +7,7 @@ import { cacheConfig } from "./config.js"
 import { checkAuth, generateToken } from "./utils/auth.js"
 import { clearRouteCache } from "./utils/cache.js"
 import { fetchWithHeaders, fetchWithRetry } from "./utils/fetcher.js"
+import { decodeText } from "./utils/helpers.js"
 import { sendBarkNotification } from "./utils/notify.js"
 
 export default {
@@ -261,190 +262,17 @@ export default {
                 }
                 
                 // 2. Handle HTML
-                let html = await targetResp.text();
-
-                // Try to extract inline JSON data (Next.js __NEXT_DATA__, ld+json, window.__INITIAL_*)
-                const tryExtractInline = async (rawHtml, baseUrl) => {
-                    try {
-                        const items = [];
-
-                        // 1) application/ld+json
-                        const ldRe = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
-                        let m;
-                        while ((m = ldRe.exec(rawHtml))) {
-                            try {
-                                const obj = JSON.parse(m[1]);
-                                // If it's an ItemList or contains items/articles, extract
-                                if (Array.isArray(obj)) {
-                                    obj.forEach(o => {
-                                        if (o.headline || o.name || o.url) items.push(o);
-                                    });
-                                } else if (obj['@type'] === 'ItemList' && obj.itemListElement) {
-                                    (obj.itemListElement || []).forEach(el => items.push(el));
-                                } else if (obj['@type'] && (obj['@type'].toLowerCase().includes('article') || obj['@type'].toLowerCase().includes('news'))) {
-                                    items.push(obj);
-                                } else if (obj.mainEntity && Array.isArray(obj.mainEntity)) {
-                                    obj.mainEntity.forEach(e => items.push(e));
-                                }
-                            } catch (e) { }
-                        }
-
-                        // 2) Next.js __NEXT_DATA__
-                        const nextRe = /<script[^>]+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/i;
-                        const nextMatch = rawHtml.match(nextRe);
-                        if (nextMatch) {
-                            try {
-                                const nd = JSON.parse(nextMatch[1]);
-                                // Deep search for arrays that look like posts
-                                const found = [];
-                                const walk = (obj) => {
-                                    if (!obj || typeof obj !== 'object') return;
-                                    if (Array.isArray(obj)) {
-                                        // check if array of objects with title/link
-                                        const sample = obj.find(i => i && typeof i === 'object' && (i.title || i.name || i.url || i.href || i.link || i.headline));
-                                        if (sample) {
-                                            obj.forEach(i => found.push(i));
-                                            return;
-                                        }
-                                        // otherwise walk items
-                                        obj.forEach(i => walk(i));
-                                    } else {
-                                        for (const k of Object.keys(obj)) {
-                                            walk(obj[k]);
-                                        }
-                                    }
-                                };
-                                walk(nd);
-                                if (found.length > 0) {
-                                    found.forEach(i => items.push(i));
-                                }
-                            } catch (e) {}
-                        }
-
-                        // 3) window.__INITIAL_STATE__ or similar
-                        const winRe = /window\.(?:__INITIAL_STATE__|__INITIAL_DATA__|__DATA__|__PRELOADED_STATE__|__SSR_DATA__|__STATE__)\s*=\s*(\{[\s\S]*?\});/i;
-                        const winMatch = rawHtml.match(winRe);
-                        if (winMatch) {
-                            try {
-                                const obj = JSON.parse(winMatch[1]);
-                                // same deep walk
-                                const walk2 = (o) => {
-                                    if (!o || typeof o !== 'object') return;
-                                    if (Array.isArray(o)) {
-                                        const sample = o.find(i => i && typeof i === 'object' && (i.title || i.name || i.url || i.link || i.headline));
-                                        if (sample) {
-                                            o.forEach(i => items.push(i));
-                                            return;
-                                        }
-                                        o.forEach(i => walk2(i));
-                                    } else {
-                                        for (const k of Object.keys(o)) walk2(o[k]);
-                                    }
-                                };
-                                walk2(obj);
-                            } catch (e) {}
-                        }
-
-                        // 3.5) <script type="application/json"> blocks
-                        try {
-                            const jsonScriptRe = /<script[^>]+type=['"]application\/json['"][^>]*>([\s\S]*?)<\/script>/gi;
-                            let jsMatch;
-                            while ((jsMatch = jsonScriptRe.exec(rawHtml))) {
-                                try {
-                                    const obj = JSON.parse(jsMatch[1]);
-                                    const walk3 = (o) => {
-                                        if (!o || typeof o !== 'object') return;
-                                        if (Array.isArray(o)) {
-                                            const sample = o.find(i => i && typeof i === 'object' && (i.title || i.name || i.url || i.link || i.headline));
-                                            if (sample) {
-                                                o.forEach(i => items.push(i));
-                                                return;
-                                            }
-                                            o.forEach(i => walk3(i));
-                                        } else {
-                                            for (const k of Object.keys(o)) walk3(o[k]);
-                                        }
-                                    };
-                                    walk3(obj);
-                                } catch (e) {}
-                            }
-                        } catch (e) {}
-
-                        // 3.6) Try to detect fetch/XHR endpoints referenced in inline scripts and call a few to extract JSON lists
-                        try {
-                            const fetchRe = /fetch\(\s*['"]([^'"\)]+)['"]/gi;
-                            const matches = new Set();
-                            let fm;
-                            while ((fm = fetchRe.exec(rawHtml))) {
-                                matches.add(fm[1]);
-                                if (matches.size >= 6) break;
-                            }
-                            // Resolve and try up to 3 endpoints
-                            let tried = 0;
-                            for (const ep of matches) {
-                                if (tried >= 3) break;
-                                try {
-                                    let abs;
-                                    try { abs = new URL(ep, baseUrl).href; } catch (e) { continue; }
-                                    const r = await fetchWithHeaders(abs, { redirect: 'follow' });
-                                    if (!r.ok) continue;
-                                    const ctype = (r.headers.get('content-type') || '').toLowerCase();
-                                    if (ctype.includes('application/json') || ctype.includes('text/json') || ctype.includes('application/ld+json')) {
-                                        const j = await r.json();
-                                        // walk to find arrays
-                                        const found = [];
-                                        const walk4 = (o) => {
-                                            if (!o || typeof o !== 'object') return;
-                                            if (Array.isArray(o)) {
-                                                const sample = o.find(i => i && typeof i === 'object' && (i.title || i.name || i.url || i.link || i.headline));
-                                                if (sample) {
-                                                    o.forEach(i => found.push(i));
-                                                    return;
-                                                }
-                                                o.forEach(i => walk4(i));
-                                            } else {
-                                                for (const k of Object.keys(o)) walk4(o[k]);
-                                            }
-                                        };
-                                        walk4(j);
-                                        if (found.length > 0) {
-                                            found.forEach(i => items.push(i));
-                                            tried++;
-                                        }
-                                    }
-                                } catch (e) { }
-                            }
-                        } catch (e) {}
-
-                        // Normalize items to have title/link/description
-                        const normalized = items.map(it => {
-                            const title = it.title || it.name || it.headline || it['@title'] || '';
-                            const link = it.url || it.link || it.href || (it['@id'] ? it['@id'] : '') || '';
-                            const description = it.description || it.excerpt || it.summary || '';
-                            return { title: String(title).trim(), link: String(link).trim(), description: String(description).trim() };
-                        }).filter(i => i.title || i.link);
-
-                        if (normalized.length > 0) {
-                            // Build simple HTML list
-                            const rows = normalized.slice(0, 50).map(it => {
-                                const a = it.link ? `<a href="${it.link}" target="_blank" rel="noopener noreferrer">${escapeHtml(it.title)}</a>` : escapeHtml(it.title);
-                                const desc = it.description ? `<div style="color:#444;font-size:13px">${escapeHtml(it.description)}</div>` : '';
-                                return `<li style="margin:8px 0;padding:6px 0;border-bottom:1px solid #eee">${a}${desc}</li>`;
-                            }).join('');
-                            const out = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Preview - Extracted</title><style>body{font-family:system-ui,Segoe UI,Roboto,'Helvetica Neue',Arial;padding:16px;background:#fff}a{color:#0366d6;text-decoration:none}a:hover{text-decoration:underline}</style></head><body><h2>自动提取的条目 (${normalized.length})</h2><ul style="list-style:none;padding:0;margin:0">${rows}</ul></body></html>`;
-                            return out;
-                        }
-                    } catch (e) {
-                        // Ignore extraction errors
-                    }
-                    return null;
-                };
-
-                const extractedHtml = await tryExtractInline(html, targetUrl);
-                if (extractedHtml) {
-                    const newHeaders = new Headers(targetResp.headers);
-                    newHeaders.set('Content-Type', 'text/html; charset=utf-8');
-                    return new Response(extractedHtml, { status: 200, headers: newHeaders });
+                // Accept optional `encoding` query param from caller and pass to decoder
+                const requestedEncoding = url.searchParams.get('encoding') || undefined;
+                // Use decodeText to honor Content-Type header / meta charset / sniffing or forced encoding
+                let html = await decodeText(targetResp, requestedEncoding);
+                // Normalize any existing charset meta tags in the HTML to UTF-8
+                try {
+                    // Replace <meta charset=...> and <meta http-equiv="Content-Type" ...> occurrences
+                    html = html.replace(/<meta[^>]*charset=["']?[^"'\s>]+["']?[^>]*>/ig, '<meta charset="utf-8">');
+                    html = html.replace(/<meta[^>]*http-equiv=["']?content-type["']?[^>]*>/ig, '<meta charset="utf-8">');
+                } catch (e) {
+                    // ignore replacement errors
                 }
                 const proxyBase = new URL(request.url).origin + '/api/visual-proxy?url=';
 
@@ -459,7 +287,7 @@ export default {
                     if (val.startsWith('data:') || val.startsWith('#') || val.startsWith('javascript:')) return match;
                     try {
                         const absolute = new URL(val, targetUrl).href;
-                        return `${attr}=${quote}${proxyBase}${encodeURIComponent(absolute)}${quote}`;
+                        return `${attr}=${quote}${proxyBase}${encodeURIComponent(absolute)}${requestedEncoding ? '&encoding=' + encodeURIComponent(requestedEncoding) : ''}${quote}`;
                     } catch(e) {
                         return match;
                     }
@@ -972,18 +800,44 @@ export default {
                     "Origin": paramValue,
                 }
             })
-            
-            // 读取内容到ArrayBuffer，这样可以多次使用
-            const content = await resp.arrayBuffer()
-            
-            response = new Response(content, {
-                headers: {
-                    "content-type": resp.headers.get("content-type") || "application/octet-stream",
-                    "Cache-Control": "public, max-age=3600", // 代理内容缓存1小时
-                    "Date": new Date().toUTCString(),
-                    "X-Cache-Status": "MISS"
-                }
-            })
+            const requestedEncoding = url.searchParams.get('encoding') || undefined;
+
+            // If content is textual (HTML/XML/JSON), decode to string respecting encoding
+            const ct = (resp.headers.get('content-type') || '').toLowerCase();
+                if (ct.includes('text') || ct.includes('xml') || ct.includes('json')) {
+                    let bodyText = await decodeText(resp, requestedEncoding);
+                    // If the resource is HTML, normalize its meta charset to UTF-8 so browser renders correctly
+                    const lcCt = (resp.headers.get('content-type') || '').toLowerCase();
+                    if (lcCt.includes('text/html')) {
+                        try {
+                            // Replace meta charset declarations in any HTML returned
+                            bodyText = bodyText.replace(/<meta[^>]*charset=["']?[^"'\s>]+["']?[^>]*>/ig, '<meta charset="utf-8">');
+                            bodyText = bodyText.replace(/<meta[^>]*http-equiv=["']?content-type["']?[^>]*>/ig, '<meta charset="utf-8">');
+                        } catch (e) {}
+                    }
+                // When we decoded the body to a JS string, ensure the returned Content-Type declares UTF-8
+                const origCt = resp.headers.get("content-type") || "text/plain";
+                const baseType = origCt.split(";")[0].trim() || "text/plain";
+                response = new Response(bodyText, {
+                    headers: {
+                        "content-type": baseType + "; charset=utf-8",
+                        "Cache-Control": "public, max-age=3600", // 代理内容缓存1小时
+                        "Date": new Date().toUTCString(),
+                        "X-Cache-Status": "MISS"
+                    }
+                });
+            } else {
+                // Binary resources: stream raw bytes
+                const content = await resp.arrayBuffer();
+                response = new Response(content, {
+                    headers: {
+                        "content-type": resp.headers.get("content-type") || "application/octet-stream",
+                        "Cache-Control": "public, max-age=3600", // 代理内容缓存1小时
+                        "Date": new Date().toUTCString(),
+                        "X-Cache-Status": "MISS"
+                    }
+                });
+            }
             // 存储到缓存
             await cache.put(cacheKey, response.clone())
             return response

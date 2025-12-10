@@ -943,7 +943,12 @@ const API_BASE = '/api/routes';
 
                 try {
                     // Use proxy to get raw content
-                    const response = await authFetch(PROXY_JSON_API + '?url=' + encodeURIComponent(url));
+                    // Prefer saved route encoding when editing an existing route
+                    const routeKey = document.getElementById('routeKey').value;
+                    let enc = document.getElementById('encoding').value || 'auto';
+                    if (routeKey && cachedRoutes[routeKey] && cachedRoutes[routeKey].encoding) enc = cachedRoutes[routeKey].encoding;
+                    const encVal = encodeURIComponent(enc);
+                    const response = await authFetch(PROXY_JSON_API + '?url=' + encodeURIComponent(url) + '&encoding=' + encVal);
                     let data;
                     if (type === 'rss') {
                         const text = await response.text();
@@ -982,7 +987,12 @@ const API_BASE = '/api/routes';
             // Use fetch to detect proxy errors (Cloudflare 1002 etc.) and show friendly message
             (async () => {
                 try {
-                    const res = await authFetch(PROXY_API + '?url=' + encodeURIComponent(url));
+                    // Prefer saved route encoding when editing an existing route
+                    const routeKey = document.getElementById('routeKey').value;
+                    let enc = document.getElementById('encoding').value || 'auto';
+                    if (routeKey && cachedRoutes[routeKey] && cachedRoutes[routeKey].encoding) enc = cachedRoutes[routeKey].encoding;
+                    const encVal = encodeURIComponent(enc);
+                    const res = await authFetch(PROXY_API + '?url=' + encodeURIComponent(url) + '&encoding=' + encVal);
                     const ct = res.headers.get('content-type') || '';
                     if (ct.includes('application/json')) {
                         const data = await res.json();

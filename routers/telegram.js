@@ -5,7 +5,7 @@ import { DateTime } from "luxon"
 
 export default async function (params, config) {
     const { format, maxItems } = params;
-    const { url } = config;
+    const { url, encoding = 'auto' } = config;
 
     try {
         if (!url) {
@@ -54,7 +54,7 @@ export default async function (params, config) {
         if (!resp.ok) {
             throw new Error(`获取 Telegram ${contentType} 失败: ${resp.status} ${resp.statusText}`);
         }
-        const html = await resp.text();
+        const html = await (async () => { try { const { decodeText } = await import('../utils/helpers.js'); return await decodeText(resp, encoding); } catch(e) { return await resp.text(); } })();
         const $ = cheerio.load(html);
         const fullTitle = $("title").text().trim();
         console.log(`Telegram title: "${fullTitle}"`);
