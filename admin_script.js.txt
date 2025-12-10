@@ -825,6 +825,46 @@ const API_BASE = '/api/routes';
             } finally {
                 document.getElementById('globalLoading').classList.add('hidden');
             }
+
+            // 新增：处理嗅探到的网络请求
+            if (e.data.type === 'networkRequest') {
+                try {
+                    const { url, method, type } = e.data.data || {};
+                    if (!url) return;
+                    const snifferPanel = document.getElementById('networkSniffer');
+                    const list = document.getElementById('networkList');
+                    if (!snifferPanel || !list) return;
+
+                    // 显示面板
+                    snifferPanel.classList.remove('hidden');
+
+                    // 去重
+                    if (Array.from(list.children).some(el => el.dataset.url === url)) return;
+
+                    const item = document.createElement('div');
+                    item.className = 'flex items-center gap-2 p-1 hover:bg-yellow-100 cursor-pointer border-b border-yellow-100 last:border-0';
+                    item.dataset.url = url;
+                    item.innerHTML = `
+                        <span class="badge bg-gray-200 text-gray-600 text-xs">${method}</span>
+                        <span class="truncate flex-1" title="${url}">${url}</span>
+                        <span class="text-gray-400 text-xs">${type}</span>
+                    `;
+
+                    item.onclick = () => {
+                        if (!confirm('是否使用此 API 地址作为源 URL 并切换到 JSON 模式？\n\n' + url)) return;
+                        const urlInput = document.getElementById('url');
+                        if (urlInput) urlInput.value = url;
+                        const typeSelect = document.getElementById('type');
+                        if (typeSelect) typeSelect.value = 'json';
+                        try { updatePlaceholder(); } catch(e) {}
+                        try { loadPreview(); } catch(e) {}
+                    };
+
+                    list.prepend(item);
+                } catch (e) {
+                    console.error('networkRequest handler error', e);
+                }
+            }
         });
 
         // --- Visual Selector ---

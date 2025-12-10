@@ -432,6 +432,53 @@ export default {
                 </style>
                 <script>
                 (function() {
+                    // === Network Sniffer: hook fetch and XHR to report requests to parent ===
+                    function notifyParent(url, method, type) {
+                        try {
+                            // filter static resources
+                            if (typeof url === 'string' && url.match(/\.(png|jpg|jpeg|gif|css|js|woff|ttf)(\?.*)?$/i)) return;
+                            if (typeof url === 'string' && url.startsWith('data:')) return;
+                            window.parent.postMessage({ type: 'networkRequest', data: { url: String(url), method: method || 'GET', type: type || 'fetch' } }, '*');
+                        } catch (e) {}
+                    }
+
+                    // Hook fetch
+                    try {
+                        const _origFetch = window.fetch.bind(window);
+                        window.fetch = async function(input, init) {
+                            try {
+                                let u = input;
+                                if (typeof u !== 'string' && u && u.url) u = u.url;
+                                if (u) {
+                                    try { u = new URL(u, window.location.href).href; } catch(e) {}
+                                    notifyParent(u, (init && init.method) || 'GET', 'fetch');
+                                }
+                            } catch(e) {}
+                            return _origFetch(input, init);
+                        };
+                    } catch(e) {}
+
+                    // Hook XHR
+                    try {
+                        const _open = XMLHttpRequest.prototype.open;
+                        XMLHttpRequest.prototype.open = function(method, url) {
+                            this._capturedMethod = method;
+                            this._capturedUrl = url;
+                            return _open.apply(this, arguments);
+                        };
+                        const _send = XMLHttpRequest.prototype.send;
+                        XMLHttpRequest.prototype.send = function(body) {
+                            try {
+                                let u = this._capturedUrl;
+                                if (u) {
+                                    try { u = new URL(u, window.location.href).href; } catch(e) {}
+                                    notifyParent(u, this._capturedMethod || 'GET', 'xhr');
+                                }
+                            } catch(e) {}
+                            return _send.apply(this, arguments);
+                        };
+                    } catch(e) {}
+
                     let mode = 'none'; // 'item', 'title', 'link', ...
                     let itemSelector = '';
                     let selectorType = 'html'; // 'html' or 'xpath'
