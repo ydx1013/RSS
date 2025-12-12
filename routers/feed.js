@@ -5,8 +5,8 @@ import { xmlToJson, getVal, decodeText } from '../utils/helpers.js';
 
 export default async function (params, config) {
     const { format = 'rss' } = params;
-    const { 
-        url, 
+    const {
+        url,
         channelTitle,
         channelDesc,
         maxItems = 20,
@@ -29,12 +29,17 @@ export default async function (params, config) {
 
     try {
         log(`[Feed] Config: fullText=${fullText}, fullTextSelector="${fullTextSelector}", itemSelector="${itemSelector}"`);
-        
-        const response = await fetchWithRetry(url, {
-            headers: {
-                'Accept': 'application/rss+xml, application/xml, application/atom+xml, text/xml, */*'
-            },
-        }, domainConfig?.groups || []);
+
+        let response;
+        if (config._inputResponse) {
+            response = config._inputResponse;
+        } else {
+            response = await fetchWithRetry(url, {
+                headers: {
+                    'Accept': 'application/rss+xml, application/xml, application/atom+xml, text/xml, */*'
+                },
+            }, domainConfig?.groups || []);
+        }
 
         // Check if we used a different URL (mirror)
         let newUrl = null;
@@ -49,7 +54,7 @@ export default async function (params, config) {
 
         const text = await decodeText(response, encoding);
         log(`[Feed] Fetched XML, length: ${text.length}`);
-        
+
         let items = [];
         let channel = {};
 
@@ -58,7 +63,7 @@ export default async function (params, config) {
             log('[Feed] Using custom selector mode');
             const json = xmlToJson(text);
             let list = getVal(json, itemSelector);
-            
+
             // Normalize list
             if (!Array.isArray(list)) {
                 if (list && typeof list === 'object') {
@@ -67,7 +72,7 @@ export default async function (params, config) {
                     list = [];
                 }
             }
-            
+
             items = list.slice(0, maxItems).map(item => {
                 // Helper for template processing (copied from json.js logic, simplified)
                 const processTemplate = (obj, template) => {
@@ -93,13 +98,13 @@ export default async function (params, config) {
                     guid: item.guid ? (item.guid['#text'] || item.guid) : null
                 };
             });
-            
+
             channel = {
                 title: channelTitle || 'Custom XML Feed',
                 link: url,
                 description: channelDesc || config.key || url,
             };
-            
+
             log(`[Feed] Custom mode extracted ${items.length} items`);
             if (items.length > 0) {
                 log(`[Feed] First item sample: title="${items[0].title}", link="${items[0].link}", desc length=${items[0].description?.length || 0}`);
@@ -113,7 +118,7 @@ export default async function (params, config) {
             } catch (e) {
                 throw new Error('Failed to parse XML with Cheerio: ' + e.message);
             }
-            
+
             let feedTitle = '';
             let feedDesc = '';
 
@@ -130,11 +135,11 @@ export default async function (params, config) {
                 $('entry').each((i, el) => {
                     if (i >= maxItems) return false;
                     const $el = $(el);
-                    
+
                     // Handle Atom Links
                     let link = $el.find('link[rel="alternate"]').attr('href');
                     if (!link) link = $el.find('link').attr('href'); // Fallback
-                    
+
                     items.push({
                         title: $el.find('title').text(),
                         link: link,
@@ -177,7 +182,7 @@ export default async function (params, config) {
         log(`[Feed] Checking full text: fullText=${fullText}, selector="${fullTextSelector}", items=${items.length}`);
         if (fullText && fullTextSelector && items.length > 0) {
             log(`[Full Text] Starting to fetch full content for ${items.length} items`);
-            
+
             const fullTextItems = [];
             for (let i = 0; i < items.length; i++) {
                 const item = items[i];
@@ -185,14 +190,14 @@ export default async function (params, config) {
                     fullTextItems.push(item);
                     continue;
                 }
-                
+
                 try {
                     // Ensure URL is absolute
                     let fetchUrl = item.link;
                     if (!fetchUrl.startsWith('http')) {
                         try {
                             fetchUrl = new URL(fetchUrl, url).href;
-                        } catch(e) {
+                        } catch (e) {
                             console.error(`[Full Text] Invalid URL: ${fetchUrl}`);
                             fullTextItems.push(item);
                             continue;
@@ -201,16 +206,16 @@ export default async function (params, config) {
 
                     log(`[Full Text] Fetching: ${fetchUrl}`);
                     const articleResp = await fetchWithHeaders(fetchUrl);
-                    
+
                     if (!articleResp.ok) {
                         log(`[Full Text] HTTP Error ${articleResp.status} for ${fetchUrl}`);
                         fullTextItems.push(item);
                         continue;
                     }
-                    
+
                     const articleHtml = await decodeText(articleResp, encoding);
                     const $article = cheerio.load(articleHtml);
-                    
+
                     // Extract full content
                     let fullContent = '';
                     if (fullTextSelector) {
@@ -224,7 +229,7 @@ export default async function (params, config) {
                             }
                         }
                     }
-                    
+
                     // Replace description if content found
                     if (fullContent && fullContent.trim()) {
                         fullTextItems.push({
@@ -236,7 +241,7 @@ export default async function (params, config) {
                         log(`[Full Text] No content found for: ${fetchUrl}`);
                         fullTextItems.push(item);
                     }
-                    
+
                     // Delay to avoid rate limiting
                     if (i < items.length - 1) {
                         await new Promise(resolve => setTimeout(resolve, 200));
@@ -246,7 +251,7 @@ export default async function (params, config) {
                     fullTextItems.push(item);
                 }
             }
-            
+
             items = fullTextItems;
         }
 

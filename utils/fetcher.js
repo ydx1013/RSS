@@ -41,6 +41,34 @@ export async function fetchWithHeaders(url, options = {}) {
         { ...baseHeaders, 'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)', 'Referer': originRef }
     ];
 
+    // Puppeteer Proxy Logic
+    if (options.usePuppeteer && options.puppeteerProxyUrl) {
+        try {
+            // Construct proxy URL: e.g. https://my-browserless.com/function?url=...
+            const proxyUrl = new URL(options.puppeteerProxyUrl);
+            proxyUrl.searchParams.append('url', url);
+            // Optionally pass selector to wait for if needed
+            if (options.puppeteerWaitSelector) {
+                proxyUrl.searchParams.append('wait', options.puppeteerWaitSelector);
+            }
+            console.log(`[Fetch] Using Puppeteer Proxy: ${proxyUrl.toString()}`);
+
+            // For proxy, we might not need all the browser headers, or we might want to pass them?
+            // Usually proxy handles UA. Let's keep base headers but fetch the proxy URL.
+            return fetch(proxyUrl.toString(), {
+                method: options.method || 'GET',
+                headers: {
+                    ...baseHeaders,
+                    // Add any specific auth headers for the proxy if needed (not implemented yet)
+                }
+            });
+        } catch (e) {
+            console.error('Puppeteer Proxy URL construction failed:', e);
+            // Fallback to normal fetch? Or throw? Throwing is better as user explicitly asked for puppeteer.
+            throw new Error('Puppeteer Proxy configuration error: ' + e.message);
+        }
+    }
+
     // Try each variant in sequence. If network error or anti-bot status (403/429/5xx), try next variant.
     const retryStatuses = new Set([403, 429, 503, 521, 522, 523, 524]);
 
@@ -87,7 +115,7 @@ export async function fetchWithHeaders(url, options = {}) {
  */
 export async function fetchWithRetry(url, options = {}, domainGroups = []) {
     const candidates = getCandidateUrls(url, domainGroups);
-    
+
     if (candidates.length === 0) {
         return fetchWithHeaders(url, options);
     }
@@ -99,14 +127,14 @@ export async function fetchWithRetry(url, options = {}, domainGroups = []) {
     for (let i = 0; i < candidates.length; i++) {
         const currentUrl = candidates[i];
         const isRetry = i > 0;
-        
+
         if (isRetry) {
             console.log(`[Fetch] Retrying with mirror: ${currentUrl}`);
         }
 
         try {
             const res = await fetchWithHeaders(currentUrl, options);
-            
+
             // Success
             if (res.ok) {
                 // Attach the effective URL to the response object so we can track which mirror worked
@@ -121,12 +149,12 @@ export async function fetchWithRetry(url, options = {}, domainGroups = []) {
                 });
                 return res;
             }
-            
+
             lastResponse = res;
-            
+
             // Record failure
             failures.push({ url: currentUrl, error: `HTTP ${res.status} ${res.statusText}` });
-            
+
             console.log(`[Fetch] ${currentUrl} failed with ${res.status}`);
         } catch (e) {
             console.log(`[Fetch] ${currentUrl} failed with error: ${e.message}`);
@@ -143,7 +171,7 @@ export async function fetchWithRetry(url, options = {}, domainGroups = []) {
         });
         return lastResponse;
     }
-    
+
     // Otherwise throw the last error
     const finalError = lastError || new Error(`All mirrors failed for ${url}`);
     finalError.retryFailures = failures;

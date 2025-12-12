@@ -4,52 +4,57 @@ import { getVal } from '../utils/helpers.js';
 
 export default async function (params, config) {
     const { format = 'rss' } = params;
-    const { 
-        url, 
-        itemSelector, 
-        titleSelector, 
-        linkSelector, 
-        linkNeedJoin = false, 
+    const {
+        url,
+        itemSelector,
+        titleSelector,
+        linkSelector,
+        linkNeedJoin = false,
         linkBaseUrl = '',
-        descSelector, 
+        descSelector,
         dateSelector,
         channelTitle,
         channelDesc,
-        maxItems = 20, 
-        timestampMode = false, 
+        maxItems = 20,
+        timestampMode = false,
         timestampUnit = 'ms',
         reverseOrder = false
     } = config;
 
     try {
-        const response = await fetchWithHeaders(url);
+        let response;
+        if (config._inputResponse) {
+            response = config._inputResponse;
+        } else {
+            response = await fetchWithHeaders(url);
+        }
 
         if (!response.ok) {
             throw new Error(`HTTP Error: ${response.status}`);
         }
 
         const data = await response.json();
-        
+
         // Helper to get value from object by path (supports nested paths, arrays, wildcards)
         // Moved to utils/helpers.js
-        
+
         // 获取列表数据
         let list = itemSelector ? getVal(data, itemSelector) : data;
-        
+
         // 如果获取到的是字符串（JSON字符串），尝试解析
         if (typeof list === 'string') {
             try {
                 list = JSON.parse(list);
-            } catch(e) {
+            } catch (e) {
                 console.error('JSON parse error:', e);
                 list = [];
             }
         }
-        
+
         // Helper to process template string with placeholders like {user.name}
         const processTemplate = (obj, template) => {
             if (!template) return '';
-            
+
             // If template contains { and }, treat as template
             if (template.includes('{') && template.includes('}')) {
                 return template.replace(/\{([^}]+)\}/g, (match, path) => {
@@ -57,7 +62,7 @@ export default async function (params, config) {
                     return val !== undefined ? val : '';
                 });
             }
-            
+
             // Otherwise treat as direct path
             return getVal(obj, template);
         };
@@ -71,17 +76,17 @@ export default async function (params, config) {
 
             items = list.slice(0, maxItems).map(item => {
                 let link = processTemplate(item, linkSelector) || '';
-                
+
                 // 如果启用了链接拼接，处理相对URL
                 if (linkNeedJoin && link && !link.startsWith('http')) {
                     try {
                         const baseUrl = linkBaseUrl ? new URL(linkBaseUrl) : new URL(url);
                         link = new URL(link, baseUrl).href;
-                    } catch(e) {
+                    } catch (e) {
                         console.error('URL处理错误:', e);
                     }
                 }
-                
+
                 // 处理日期
                 let pubDate = new Date().toUTCString();
                 if (dateSelector) {
@@ -94,7 +99,7 @@ export default async function (params, config) {
                             if (timestampMode && typeof dateVal === 'number') {
                                 const timestamp = timestampUnit === 's' ? dateVal * 1000 : dateVal;
                                 pubDate = new Date(timestamp).toUTCString();
-                            } 
+                            }
                             // 字符串时间戳
                             else if (timestampMode && typeof dateVal === 'string' && !isNaN(dateVal) && /^\d+$/.test(dateVal)) {
                                 const numVal = parseInt(dateVal);
@@ -105,12 +110,12 @@ export default async function (params, config) {
                             else if (typeof dateVal === 'number') {
                                 const timestamp = dateVal > 9999999999 ? dateVal : dateVal * 1000;
                                 pubDate = new Date(timestamp).toUTCString();
-                            } 
+                            }
                             // 日期字符串
                             else {
                                 pubDate = new Date(dateVal).toUTCString();
                             }
-                        } catch(e) {
+                        } catch (e) {
                             console.error('日期解析错误:', e);
                         }
                     }

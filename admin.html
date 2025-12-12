@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,6 +12,7 @@
     <meta name="theme-color" content="#f97316">
     <!-- CSS_INJECT_POINT -->
 </head>
+
 <body class="bg-gray-100 text-gray-800">
 
     <!-- Login Page -->
@@ -23,9 +25,11 @@
             <form id="loginForm" class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">密码</label>
-                    <input type="password" id="loginPassword" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="请输入密码" required>
+                    <input type="password" id="loginPassword" class="w-full px-3 py-2 border border-gray-300 rounded-md"
+                        placeholder="请输入密码" required>
                 </div>
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-md transition-colors shadow-sm">
+                <button type="submit"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-md transition-colors shadow-sm">
                     登录
                 </button>
                 <p id="loginError" class="text-red-500 text-sm text-center hidden"></p>
@@ -36,488 +40,725 @@
     <!-- Main Admin Panel -->
     <div id="adminPanel" class="h-screen flex overflow-hidden hidden">
 
-    <!-- Mobile Header -->
-    <div class="md:hidden fixed top-0 left-0 right-0 h-14 bg-white border-b border-gray-200 z-20 flex items-center justify-between px-4">
-        <h1 class="text-lg font-semibold text-gray-900">RSS Worker</h1>
-        <button onclick="document.getElementById('mobileMenu').classList.toggle('hidden')" class="p-2 rounded-md text-gray-600 hover:bg-gray-100">
-            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
-        </button>
-    </div>
-
-    <!-- Mobile Menu Overlay -->
-    <div id="mobileMenu" class="hidden fixed inset-0 z-30 bg-black bg-opacity-50 md:hidden" onclick="this.classList.add('hidden')">
-        <div class="w-64 h-full bg-white shadow-xl flex flex-col" onclick="event.stopPropagation()">
-            <div class="p-4 border-b border-gray-200 flex justify-between items-center">
-                <h2 class="text-lg font-semibold text-gray-900">菜单</h2>
-                <button onclick="document.getElementById('mobileMenu').classList.add('hidden')" class="text-gray-500">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                </button>
-            </div>
-            <nav class="flex-1 p-3 space-y-1">
-                <button onclick="showPage('dashboard'); document.getElementById('mobileMenu').classList.add('hidden')" class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn active flex items-center gap-2" data-target="dashboard">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                </svg>
-                <span>仪表盘</span>
-            </button>
-            <button onclick="showPage('editor'); document.getElementById('mobileMenu').classList.add('hidden')" class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2" data-target="editor">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                </svg>
-                <span>添加路由</span>
-            </button>
-            <button onclick="showPage('list'); document.getElementById('mobileMenu').classList.add('hidden')" class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2" data-target="list">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
-                </svg>
-                <span>路由列表</span>
-            </button>
-            <button onclick="showPage('folders'); document.getElementById('mobileMenu').classList.add('hidden')" class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2" data-target="folders">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-                </svg>
-                <span>合集列表</span>
-            </button>
-            <button onclick="showPage('domains'); document.getElementById('mobileMenu').classList.add('hidden')" class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2" data-target="domains">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
-                <span>域名配置</span>
-            </button>
-            </nav>
-        </div>
-    </div>
-
-    <!-- Sidebar (Desktop) -->
-    <aside class="hidden md:flex w-56 bg-white border-r border-gray-200 flex-col">
-        <div class="p-4 border-b border-gray-200">
+        <!-- Mobile Header -->
+        <div
+            class="md:hidden fixed top-0 left-0 right-0 h-14 bg-white border-b border-gray-200 z-20 flex items-center justify-between px-4">
             <h1 class="text-lg font-semibold text-gray-900">RSS Worker</h1>
-            <p class="text-xs text-gray-500">管理后台</p>
-        </div>
-        
-        <nav class="flex-1 p-3 space-y-1">
-            <button onclick="showPage('dashboard')" class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn active flex items-center gap-2" data-target="dashboard">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            <button onclick="document.getElementById('mobileMenu').classList.toggle('hidden')"
+                class="p-2 rounded-md text-gray-600 hover:bg-gray-100">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16">
+                    </path>
                 </svg>
-                <span>仪表盘</span>
             </button>
-            <button onclick="showPage('editor')" class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2" data-target="editor">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                </svg>
-                <span>添加路由</span>
-            </button>
-            <button onclick="showPage('list')" class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2" data-target="list">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
-                </svg>
-                <span>路由列表</span>
-            </button>
-            <button onclick="showPage('folders')" class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2" data-target="folders">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-                </svg>
-                <span>合集列表</span>
-            </button>
-            <button onclick="showPage('domains')" class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2" data-target="domains">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"></path></svg>
-                <span>域名配置</span>
-            </button>
-        </nav>
-        
-        <div class="p-4 border-t border-gray-200 text-center">
-            <p class="text-xs text-gray-400">Cloudflare Workers</p>
-        </div>
-    </aside>
-
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col overflow-hidden relative pt-14 md:pt-0">
-        <!-- Loading Overlay -->
-        <div id="globalLoading" class="loading-overlay hidden">
-            <div>Loading...</div>
         </div>
 
-        <!-- Dashboard Page -->
-        <div id="page-dashboard" class="page-content flex-1 overflow-y-auto p-6 bg-gray-50">
-            <div class="mb-6">
-                <h2 class="text-2xl font-semibold text-gray-900 mb-1">仪表盘</h2>
-                <p class="text-sm text-gray-500">RSS订阅管理</p>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-xs text-gray-500 mb-1">总路由数</p>
-                            <p class="text-3xl font-semibold text-gray-900" id="stat-total">0</p>
-                            <p class="text-xs text-gray-400 mt-2" id="stat-active-domain-container" style="display:none">
-                                活跃节点: <span id="stat-active-domain" class="font-medium text-blue-600">Loading...</span>
-                            </p>
-                        </div>
-                        <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+        <!-- Mobile Menu Overlay -->
+        <div id="mobileMenu" class="hidden fixed inset-0 z-30 bg-black bg-opacity-50 md:hidden"
+            onclick="this.classList.add('hidden')">
+            <div class="w-64 h-full bg-white shadow-xl flex flex-col" onclick="event.stopPropagation()">
+                <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-900">菜单</h2>
+                    <button onclick="document.getElementById('mobileMenu').classList.add('hidden')"
+                        class="text-gray-500">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
-                    </div>
+                    </button>
                 </div>
-
-                <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
-                    <p class="text-xs text-gray-500 mb-3">快速操作</p>
-                    <div class="flex gap-3">
-                        <button onclick="showPage('editor')" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow flex items-center justify-center gap-2">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
-                            </svg>
-                            新建路由
-                        </button>
-                        <button onclick="showPage('list')" class="flex-1 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow flex items-center justify-center gap-2">
-                            <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
-                            </svg>
-                            查看列表
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
-                    <p class="text-xs text-gray-500 mb-3 font-bold">最近更新 (Top 10)</p>
-                    <div id="stat-recent" class="space-y-2">
-                        <p class="text-sm text-gray-400">暂无更新记录</p>
-                    </div>
-                </div>
-
-                <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
-                    <p class="text-xs text-gray-500 mb-3 font-bold">最久未更新 (Top 10)</p>
-                    <div id="stat-oldest" class="space-y-2">
-                        <p class="text-sm text-gray-400">暂无更新记录</p>
-                    </div>
-                </div>
+                <nav class="flex-1 p-3 space-y-1">
+                    <button
+                        onclick="showPage('dashboard'); document.getElementById('mobileMenu').classList.add('hidden')"
+                        class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn active flex items-center gap-2"
+                        data-target="dashboard">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                            </path>
+                        </svg>
+                        <span>仪表盘</span>
+                    </button>
+                    <button onclick="showPage('editor'); document.getElementById('mobileMenu').classList.add('hidden')"
+                        class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2"
+                        data-target="editor">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4">
+                            </path>
+                        </svg>
+                        <span>添加路由</span>
+                    </button>
+                    <button onclick="showPage('list'); document.getElementById('mobileMenu').classList.add('hidden')"
+                        class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2"
+                        data-target="list">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                        </svg>
+                        <span>路由列表</span>
+                    </button>
+                    <button onclick="showPage('folders'); document.getElementById('mobileMenu').classList.add('hidden')"
+                        class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2"
+                        data-target="folders">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                        </svg>
+                        <span>合集列表</span>
+                    </button>
+                    <button onclick="showPage('domains'); document.getElementById('mobileMenu').classList.add('hidden')"
+                        class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2"
+                        data-target="domains">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9">
+                            </path>
+                        </svg>
+                        <span>域名配置</span>
+                    </button>
+                </nav>
             </div>
         </div>
 
-        <!-- Folders Page -->
-        <div id="page-folders" class="page-content flex-1 overflow-y-auto p-6 bg-gray-50 hidden">
-            <div class="mb-6 flex justify-between items-end">
-                <div>
-                    <h2 class="text-2xl font-semibold text-gray-900 mb-1">合集列表</h2>
-                    <p class="text-sm text-gray-500">查看和管理路由分组</p>
-                </div>
-                <button onclick="openFolderModal()" class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
-                    新建合集
-                </button>
+        <!-- Sidebar (Desktop) -->
+        <aside class="hidden md:flex w-56 bg-white border-r border-gray-200 flex-col">
+            <div class="p-4 border-b border-gray-200">
+                <h1 class="text-lg font-semibold text-gray-900">RSS Worker</h1>
+                <p class="text-xs text-gray-500">管理后台</p>
             </div>
-            <div id="folderList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                <!-- Folders will be injected here -->
-            </div>
-        </div>
 
-        <!-- Domain Config Page -->
-        <div id="page-domains" class="page-content flex-1 overflow-y-auto p-6 bg-gray-50 hidden">
-            <div class="mb-6 flex justify-between items-end">
-                <div>
-                    <h2 class="text-2xl font-semibold text-gray-900 mb-1">域名镜像配置</h2>
-                    <p class="text-sm text-gray-500">配置域名组，当主域名访问失败时自动尝试同组的其他域名</p>
-                </div>
-                <button onclick="saveDomains()" class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 flex items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>
-                    保存配置
+            <nav class="flex-1 p-3 space-y-1">
+                <button onclick="showPage('dashboard')"
+                    class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn active flex items-center gap-2"
+                    data-target="dashboard">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+                        </path>
+                    </svg>
+                    <span>仪表盘</span>
                 </button>
+                <button onclick="showPage('editor')"
+                    class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2"
+                    data-target="editor">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    <span>添加路由</span>
+                </button>
+                <button onclick="showPage('list')"
+                    class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2"
+                    data-target="list">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                    </svg>
+                    <span>路由列表</span>
+                </button>
+                <button onclick="showPage('folders')"
+                    class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2"
+                    data-target="folders">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                    </svg>
+                    <span>合集列表</span>
+                </button>
+                <button onclick="showPage('domains')"
+                    class="w-full text-left px-3 py-2 rounded-md hover:bg-gray-100 nav-btn text-gray-900 font-medium flex items-center gap-2"
+                    data-target="domains">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9">
+                        </path>
+                    </svg>
+                    <span>域名配置</span>
+                </button>
+            </nav>
+
+            <div class="p-4 border-t border-gray-200 text-center">
+                <p class="text-xs text-gray-400">Cloudflare Workers</p>
             </div>
-            
-            <div class="bg-white rounded-lg shadow border border-gray-200 p-6">
-                    <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">域名组配置</label>
-                    <div class="flex items-center gap-3 mb-2">
-                        <div>
-                            <p class="text-xs text-gray-500">每行输入一组域名，格式支持带备注的形式：<br><code>备注: 域名1, 域名2, 域名3</code></p>
-                        </div>
-                        <div class="ml-auto">
-                            <label class="text-xs text-gray-500 mr-2">活跃节点备注</label>
-                            <select id="activeRemarkSelect" class="text-sm px-2 py-1 border border-gray-300 rounded bg-white"></select>
-                        </div>
-                    </div>
-                    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
-                        <div class="flex">
-                            <div class="flex-shrink-0">
-                                <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                                </svg>
-                            </div>
-                            <div class="ml-3">
-                                <p class="text-sm text-blue-700">
-                                    每行输入一组域名，使用逗号分隔。例如：<br>
-                                    <code>rsshub.app, rsshub.feed, rsshub.io</code><br>
-                                    <code>twitter.com, x.com</code>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col overflow-hidden relative pt-14 md:pt-0">
+            <!-- Loading Overlay -->
+            <div id="globalLoading" class="loading-overlay hidden">
+                <div>Loading...</div>
+            </div>
+
+            <!-- Anchor Links (快速跳转) -->
+            <div id="adminAnchors" class="p-4 bg-white border-b border-gray-200 flex gap-2 items-center">
+                <span class="text-sm text-gray-500 mr-2">快速跳转:</span>
+                <a href="?tab=dashboard" onclick="showPage('dashboard')"
+                    class="text-sm px-3 py-1 rounded-md bg-gray-100 hover:bg-gray-200">仪表盘</a>
+                <a href="?tab=editor" onclick="showPage('editor')"
+                    class="text-sm px-3 py-1 rounded-md bg-gray-100 hover:bg-gray-200">添加路由</a>
+                <a href="?tab=list" onclick="showPage('list')"
+                    class="text-sm px-3 py-1 rounded-md bg-gray-100 hover:bg-gray-200">路由列表</a>
+                <a href="?tab=folders" onclick="showPage('folders')"
+                    class="text-sm px-3 py-1 rounded-md bg-gray-100 hover:bg-gray-200">合集列表</a>
+                <a href="?tab=domains" onclick="showPage('domains')"
+                    class="text-sm px-3 py-1 rounded-md bg-gray-100 hover:bg-gray-200">域名配置</a>
+            </div>
+
+            <!-- Dashboard Page -->
+            <div id="page-dashboard" class="page-content flex-1 overflow-y-auto p-6 bg-gray-50">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold text-gray-900 mb-1">仪表盘</h2>
+                    <p class="text-sm text-gray-500">RSS订阅管理</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-xs text-gray-500 mb-1">总路由数</p>
+                                <p class="text-3xl font-semibold text-gray-900" id="stat-total">0</p>
+                                <p class="text-xs text-gray-400 mt-2" id="stat-active-domain-container"
+                                    style="display:none">
+                                    活跃节点: <span id="stat-active-domain"
+                                        class="font-medium text-blue-600">Loading...</span>
                                 </p>
                             </div>
+                            <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
+                                </path>
+                            </svg>
                         </div>
                     </div>
-                    <textarea id="domainGroupsInput" class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md font-mono text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="rsshub.app, rsshub.feed, rsshub.io&#10;twitter.com, x.com"></textarea>
+
+                    <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
+                        <p class="text-xs text-gray-500 mb-3">快速操作</p>
+                        <div class="flex gap-3">
+                            <button onclick="showPage('editor')"
+                                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow flex items-center justify-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                新建路由
+                            </button>
+                            <button onclick="showPage('list')"
+                                class="flex-1 bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow flex items-center justify-center gap-2">
+                                <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                                </svg>
+                                查看列表
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="border-t border-gray-200 pt-6 mt-6">
-                    <h3 class="text-lg font-medium text-gray-900 mb-4">全局故障通知 (Bark)</h3>
-                    <div class="bg-gray-50 p-4 rounded-md border border-gray-200 mb-4">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Bark 推送 URL</label>
-                        <input type="url" id="barkUrl" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500" placeholder="https://api.day.app/YOUR_KEY/">
-                        <div class="mt-3 flex gap-2">
-                            <button id="testBarkBtn" onclick="testBark()" class="bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-indigo-700">发送测试通知</button>
-                            <span id="testBarkStatus" class="text-sm text-gray-500 self-center">（点击发送一条测试通知到配置的 Bark URL）</span>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
+                        <p class="text-xs text-gray-500 mb-3 font-bold">最近更新 (Top 10)</p>
+                        <div id="stat-recent" class="space-y-2">
+                            <p class="text-sm text-gray-400">暂无更新记录</p>
                         </div>
-                        <p class="text-xs text-gray-500 mt-1">监控所有订阅源（包括 RSSHub、自定义 HTML、JSON 等）。当任何订阅源发生错误或无法访问时，发送通知。</p>
-                        
-                        <div class="bg-white rounded-md border border-gray-200 p-4">
-                            <h4 class="text-sm font-medium text-gray-800 mb-2">为哪些订阅启用 Bark 通知</h4>
-                            <p class="text-xs text-gray-500 mb-3">在下方列表中选择你想接收通知的订阅源（保存后会批量更新对应路由的通知设置）。</p>
-                            <div id="barkRouteList" class="max-h-64 overflow-auto border border-gray-100 rounded p-2 bg-gray-50"></div>
+                    </div>
+
+                    <div class="bg-white p-4 rounded-lg shadow border border-gray-200">
+                        <p class="text-xs text-gray-500 mb-3 font-bold">最久未更新 (Top 10)</p>
+                        <div id="stat-oldest" class="space-y-2">
+                            <p class="text-sm text-gray-400">暂无更新记录</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Folders Page -->
+            <div id="page-folders" class="page-content flex-1 overflow-y-auto p-6 bg-gray-50 hidden">
+                <div class="mb-6 flex justify-between items-end">
+                    <div>
+                        <h2 class="text-2xl font-semibold text-gray-900 mb-1">合集列表</h2>
+                        <p class="text-sm text-gray-500">查看和管理路由分组</p>
+                    </div>
+                    <button onclick="openFolderModal()"
+                        class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        新建合集
+                    </button>
+                </div>
+                <div id="folderList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <!-- Folders will be injected here -->
+                </div>
+            </div>
+
+            <!-- Domain Config Page -->
+            <div id="page-domains" class="page-content flex-1 overflow-y-auto p-6 bg-gray-50 hidden">
+                <div class="mb-6 flex justify-between items-end">
+                    <div>
+                        <h2 class="text-2xl font-semibold text-gray-900 mb-1">域名镜像配置</h2>
+                        <p class="text-sm text-gray-500">配置域名组，当主域名访问失败时自动尝试同组的其他域名</p>
+                    </div>
+                    <button onclick="saveDomains()"
+                        class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                            </path>
+                        </svg>
+                        保存配置
+                    </button>
+                </div>
+
+                <div class="bg-white rounded-lg shadow border border-gray-200 p-6">
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">域名组配置</label>
+                        <div class="flex items-center gap-3 mb-2">
+                            <div>
+                                <p class="text-xs text-gray-500">每行输入一组域名，格式支持带备注的形式：<br><code>备注: 域名1, 域名2, 域名3</code>
+                                </p>
+                            </div>
+                            <div class="ml-auto">
+                                <label class="text-xs text-gray-500 mr-2">活跃节点备注</label>
+                                <select id="activeRemarkSelect"
+                                    class="text-sm px-2 py-1 border border-gray-300 rounded bg-white"></select>
+                            </div>
+                        </div>
+                        <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
+                            <div class="flex">
+                                <div class="flex-shrink-0">
+                                    <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd"
+                                            d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+                                            clip-rule="evenodd" />
+                                    </svg>
+                                </div>
+                                <div class="ml-3">
+                                    <p class="text-sm text-blue-700">
+                                        每行输入一组域名，使用逗号分隔。例如：<br>
+                                        <code>rsshub.app, rsshub.feed, rsshub.io</code><br>
+                                        <code>twitter.com, x.com</code>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <textarea id="domainGroupsInput"
+                            class="w-full h-96 px-3 py-2 border border-gray-300 rounded-md font-mono text-sm focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="rsshub.app, rsshub.feed, rsshub.io&#10;twitter.com, x.com"></textarea>
+                    </div>
+
+                    <div class="border-t border-gray-200 pt-6 mt-6">
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">Puppeteer Proxy (Lazy Load)</h3>
+                        <div class="bg-gray-50 p-4 rounded-md border border-gray-200 mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Proxy URL Endpoint</label>
+                            <input type="url" id="puppeteerUrl"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="https://your-puppeteer-service.com/?url=">
+                            <p class="text-xs text-gray-500 mt-1">Configured proxy service will be used when "Puppeteer"
+                                is enabled in route. The target URL will be appended as ?url=TARGET_URL</p>
+                        </div>
+                    </div>
+
+                    <div class="border-t border-gray-200 pt-6 mt-6">
+                        <h3 class="text-lg font-medium text-gray-900 mb-4">全局故障通知 (Bark)</h3>
+                        <div class="bg-gray-50 p-4 rounded-md border border-gray-200 mb-4">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Bark 推送 URL</label>
+                            <input type="url" id="barkUrl"
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="https://api.day.app/YOUR_KEY/">
+                            <div class="mt-3 flex gap-2">
+                                <button id="testBarkBtn" onclick="testBark()"
+                                    class="bg-indigo-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-indigo-700">发送测试通知</button>
+                                <span id="testBarkStatus" class="text-sm text-gray-500 self-center">（点击发送一条测试通知到配置的 Bark
+                                    URL）</span>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1">监控所有订阅源（包括 RSSHub、自定义 HTML、JSON
+                                等）。当任何订阅源发生错误或无法访问时，发送通知。</p>
+
+                            <div class="bg-white rounded-md border border-gray-200 p-4">
+                                <h4 class="text-sm font-medium text-gray-800 mb-2">为哪些订阅启用 Bark 通知</h4>
+                                <p class="text-xs text-gray-500 mb-3">在下方列表中选择你想接收通知的订阅源（保存后会批量更新对应路由的通知设置）。</p>
+                                <div id="barkRouteList"
+                                    class="max-h-64 overflow-auto border border-gray-100 rounded p-2 bg-gray-50"></div>
                                 <div class="mt-3 flex gap-2 items-center">
-                                <button onclick="saveBarkSelections()" class="bg-green-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-green-700">保存路由通知设置</button>
-                                <button onclick="loadBarkRouteList()" class="bg-white border border-gray-200 px-3 py-1.5 rounded-md text-sm">刷新列表</button>
-                                <button onclick="selectAllBark()" class="bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-blue-700">全选</button>
-                                <button onclick="deselectAllBark()" class="bg-white border border-gray-200 px-3 py-1.5 rounded-md text-sm">全不选</button>
-                                <span id="barkRouteStatus" class="text-sm text-gray-500 self-center"></span>
+                                    <button onclick="saveBarkSelections()"
+                                        class="bg-green-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-green-700">保存路由通知设置</button>
+                                    <button onclick="loadBarkRouteList()"
+                                        class="bg-white border border-gray-200 px-3 py-1.5 rounded-md text-sm">刷新列表</button>
+                                    <button onclick="selectAllBark()"
+                                        class="bg-blue-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-blue-700">全选</button>
+                                    <button onclick="deselectAllBark()"
+                                        class="bg-white border border-gray-200 px-3 py-1.5 rounded-md text-sm">全不选</button>
+                                    <span id="barkRouteStatus" class="text-sm text-gray-500 self-center"></span>
+                                </div>
                             </div>
+                            <!-- Partial failure notification option removed: notifications are sent for route-level errors only. -->
                         </div>
-                        <!-- Partial failure notification option removed: notifications are sent for route-level errors only. -->
                     </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Editor Page -->
-        <div id="page-editor" class="page-content flex-1 overflow-y-auto p-6 bg-gray-50 hidden">
-            <div class="mb-6">
-                <h2 class="text-2xl font-semibold text-gray-900 mb-1">路由编辑器</h2>
-                <p class="text-sm text-gray-500">创建或编辑RSS订阅路由</p>
-            </div>
-            
-            <div class="flex flex-col lg:flex-row gap-6">
-                <!-- Form Column -->
-                <div class="w-full lg:w-1/2 bg-white p-6 rounded-lg shadow border border-gray-200">
+            <!-- Editor Page -->
+            <div id="page-editor" class="page-content flex-1 overflow-y-auto p-6 bg-gray-50 hidden">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold text-gray-900 mb-1">路由编辑器</h2>
+                    <p class="text-sm text-gray-500">创建或编辑RSS订阅路由</p>
+                </div>
 
-                    
-                    <form id="routeForm" class="space-y-4">
-                        <!-- 基本信息区域 -->
-                        <div id="section-basic" class="scroll-mt-6">
-                            <h3 class="text-sm font-semibold text-gray-900 mb-3 pb-2 border-b">基本信息</h3>
-                            <div class="space-y-3">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">路由路径</label>
-                                    <div class="flex rounded-md shadow-sm">
-                                        <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-600 text-sm">/?custom=</span>
-                                        <input type="text" id="routeKey" class="flex-1 block w-full rounded-none rounded-r-md border-gray-300 border p-2 text-sm" placeholder="my-feed" required>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">源 URL</label>
-                                    <input type="url" id="url" class="block w-full rounded-md border-gray-300 border p-2 text-sm" placeholder="https://example.com" required>
-                                </div>
-
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">源类型</label>
-                                        <select id="type" class="block w-full rounded-md border-gray-300 border p-2 text-sm">
-                                            <option value="html">HTML</option>
-                                            <option value="xpath">XPath</option>
-                                            <option value="json">JSON</option>
-                                            <option value="rss">RSS/Atom</option>
-                                            <option value="telegram">Telegram</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">频道标题</label>
-                                        <input type="text" id="channelTitle" class="block w-full rounded-md border-gray-300 border p-2 text-sm" placeholder="可选">
-                                    </div>
-                                </div>
-
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">最大条目数</label>
-                                        <input type="number" id="maxItems" class="block w-full rounded-md border-gray-300 border p-2 text-sm" value="20" min="1" max="100">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-gray-700 mb-1">字符编码</label>
-                                        <select id="encoding" class="block w-full rounded-md border-gray-300 border p-2 text-sm">
-                                            <option value="auto">自动检测</option>
-                                            <option value="utf-8">UTF-8</option>
-                                            <option value="gbk">GBK</option>
-                                            <option value="gb2312">GB2312</option>
-                                            <option value="big5">Big5</option>
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">频道描述</label>
-                                    <input type="text" id="channelDesc" class="block w-full rounded-md border-gray-300 border p-2 text-sm" placeholder="可选">
-                                </div>
-
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">文件夹 (分组)</label>
-                                    <input type="text" id="folder" class="block w-full rounded-md border-gray-300 border p-2 text-sm" placeholder="可选，例如: Tech">
-                                </div>
-                            </div>
+                <div class="flex flex-col gap-6">
+                    <!-- Form Column -->
+                    <div class="w-full bg-white rounded-lg shadow border border-gray-200 overflow-hidden transition-all duration-300"
+                        id="configPanel">
+                        <!-- Header with Collapse Toggle -->
+                        <div class="bg-gray-50 px-4 py-2 border-b border-gray-200 flex justify-between items-center cursor-pointer select-none"
+                            onclick="toggleConfigPanel()">
+                            <h3 class="text-sm font-semibold text-gray-700">⚙️ 路由配置</h3>
+                            <button type="button" class="text-gray-500 hover:text-gray-700">
+                                <svg id="configPanelIcon" class="w-4 h-4 transform transition-transform" fill="none"
+                                    stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M5 15l7-7 7 7"></path>
+                                </svg>
+                            </button>
                         </div>
 
-                        <!-- 选择器配置区域 -->
-                        <div id="section-selectors" class="border-t border-gray-200 pt-4 scroll-mt-6">
-                            <div class="flex justify-between items-center mb-3">
-                                <h3 class="text-sm font-semibold text-gray-900">选择器配置</h3>
-                            </div>
-                            <div class="space-y-3">
-                                <div>
-                                    <label class="block text-xs font-medium text-gray-500 mb-1">列表项 *</label>
-                                    <input type="text" id="itemSelector" class="block w-full rounded-md border-gray-300 border p-2 text-sm font-mono bg-gray-50" placeholder=".post" required>
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-500 mb-1">标题</label>
-                                        <input type="text" id="titleSelector" class="block w-full rounded-md border-gray-300 border p-2 text-sm font-mono bg-gray-50" placeholder="h2 a">
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-500 mb-1">链接</label>
-                                        <input type="text" id="linkSelector" class="block w-full rounded-md border-gray-300 border p-2 text-sm font-mono bg-gray-50" placeholder="a">
-                                        <div class="mt-1 space-y-1">
-                                            <label class="flex items-center text-xs text-gray-600">
-                                                <input type="checkbox" id="linkNeedJoin" class="rounded border-gray-300 text-blue-600 mr-1" onchange="document.getElementById('linkBaseUrl').classList.toggle('hidden', !this.checked)">
-                                                <span>拼接域名（相对链接自动补全）</span>
-                                            </label>
-                                            <input type="text" id="linkBaseUrl" class="hidden block w-full rounded-md border-gray-300 border p-1 text-xs bg-gray-50" placeholder="留空自动使用源站域名，或输入 https://example.com">
+                        <div class="p-4" id="configPanelContent">
+                            <form id="routeForm">
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <!-- Left Column: Basic & Advanced -->
+                                    <div class="space-y-3">
+                                        <!-- Basic Info -->
+                                        <div id="section-basic">
+                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                                                基本信息</h4>
+                                            <div class="space-y-2">
+                                                <div class="grid grid-cols-12 gap-2">
+                                                    <div class="col-span-5">
+                                                        <label
+                                                            class="block text-[10px] font-medium text-gray-500 mb-0.5">路由路径</label>
+                                                        <div class="flex rounded-md shadow-sm h-7">
+                                                            <span
+                                                                class="inline-flex items-center px-1.5 rounded-l border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-[10px]">/?custom=</span>
+                                                            <input type="text" id="routeKey"
+                                                                class="flex-1 block w-full rounded-none rounded-r border-gray-300 border px-1.5 text-xs focus:ring-1 focus:ring-blue-500"
+                                                                placeholder="feed-id" required>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-span-7">
+                                                        <label
+                                                            class="block text-[10px] font-medium text-gray-500 mb-0.5">源
+                                                            URL</label>
+                                                        <input type="url" id="url"
+                                                            class="block w-full h-7 rounded border-gray-300 border px-1.5 text-xs focus:ring-1 focus:ring-blue-500"
+                                                            placeholder="https://example.com" required>
+                                                    </div>
+                                                </div>
+
+                                                <div class="grid grid-cols-4 gap-2">
+                                                    <div class="col-span-1">
+                                                        <label
+                                                            class="block text-[10px] font-medium text-gray-500 mb-0.5">类型</label>
+                                                        <select id="type"
+                                                            class="block w-full h-7 rounded border-gray-300 border px-1 py-0 text-xs focus:ring-1 focus:ring-blue-500">
+                                                            <option value="html">HTML</option>
+                                                            <option value="xpath">XPath</option>
+                                                            <option value="json">JSON</option>
+                                                            <option value="rss">RSS</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-span-1">
+                                                        <label
+                                                            class="block text-[10px] font-medium text-gray-500 mb-0.5">编码</label>
+                                                        <select id="encoding"
+                                                            class="block w-full h-7 rounded border-gray-300 border px-1 py-0 text-xs focus:ring-1 focus:ring-blue-500">
+                                                            <option value="auto">自动</option>
+                                                            <option value="utf-8">UTF-8</option>
+                                                            <option value="gbk">GBK</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-span-1">
+                                                        <label
+                                                            class="block text-[10px] font-medium text-gray-500 mb-0.5">条数</label>
+                                                        <input type="number" id="maxItems"
+                                                            class="block w-full h-7 rounded border-gray-300 border px-1.5 text-xs focus:ring-1 focus:ring-blue-500"
+                                                            value="20" min="1" max="100">
+                                                    </div>
+                                                    <div class="col-span-1">
+                                                        <label
+                                                            class="block text-[10px] font-medium text-gray-500 mb-0.5">标题(选)</label>
+                                                        <input type="text" id="channelTitle"
+                                                            class="block w-full h-7 rounded border-gray-300 border px-1.5 text-xs focus:ring-1 focus:ring-blue-500">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Advanced - Moved here -->
+                                        <div id="section-advanced" class="border-t border-gray-100 pt-2">
+                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
+                                                高级选项</h4>
+                                            <div class="flex flex-wrap gap-3 items-center">
+                                                <label
+                                                    class="flex items-center text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded border border-gray-200 cursor-pointer hover:bg-gray-100">
+                                                    <input type="checkbox" id="reverseOrder"
+                                                        class="rounded border-gray-300 text-blue-600 h-3 w-3 mr-1.5">
+                                                    倒序
+                                                </label>
+                                                <label
+                                                    class="flex items-center text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded border border-gray-200 cursor-pointer hover:bg-gray-100">
+                                                    <input type="checkbox" id="fullText"
+                                                        class="rounded border-gray-300 text-blue-600 h-3 w-3 mr-1.5">
+                                                    全文
+                                                </label>
+                                                <label
+                                                    class="flex items-center text-xs text-gray-600 bg-gray-50 px-2 py-1 rounded border border-gray-200 cursor-pointer hover:bg-gray-100">
+                                                    <input type="checkbox" id="usePuppeteer"
+                                                        class="rounded border-gray-300 text-blue-600 h-3 w-3 mr-1.5">
+                                                    Puppeteer (Lazy Load)
+                                                </label>
+                                                <div id="fullTextConfig" class="hidden flex-1 min-w-[120px]">
+                                                    <input type="text" id="fullTextSelector"
+                                                        class="block w-full h-7 rounded border-gray-300 border px-2 text-xs font-mono bg-blue-50 focus:ring-1 focus:ring-blue-500"
+                                                        placeholder="全文选择器 (.content)">
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-500 mb-1">描述</label>
-                                        <input type="text" id="descSelector" class="block w-full rounded-md border-gray-300 border p-2 text-sm font-mono bg-gray-50" placeholder=".desc">
-                                    </div>
-                                    <div>
-                                        <label class="block text-xs font-medium text-gray-500 mb-1">日期</label>
-                                        <input type="text" id="dateSelector" class="block w-full rounded-md border-gray-300 border p-2 text-sm font-mono bg-gray-50" placeholder=".date">
-                                    </div>
-                                </div>
-                                
-                                <div>
-                                    <label class="flex items-center text-sm">
-                                        <input type="checkbox" id="timestampMode" class="rounded border-gray-300 text-blue-600">
-                                        <span class="ml-2 text-gray-700">时间戳格式</span>
-                                    </label>
-                                    <div id="timestampConfig" class="mt-2 ml-6 hidden">
-                                        <select id="timestampUnit" class="block rounded-md border-gray-300 border p-2 text-sm">
-                                            <option value="s">秒级 (10位)</option>
-                                            <option value="ms" selected>毫秒级 (13位)</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
 
-                        <!-- 高级选项区域 -->
-                        <div id="section-advanced" class="border-t border-gray-200 pt-4 scroll-mt-6">
-                            <h3 class="text-sm font-semibold text-gray-900 mb-3">高级选项</h3>
-                            <div class="space-y-3">
-                                <div>
-                                    <label class="flex items-center text-sm">
-                                        <input type="checkbox" id="reverseOrder" class="rounded border-gray-300 text-blue-600">
-                                        <span class="ml-2 text-gray-900 font-medium">倒序排列 (最新的在最后)</span>
-                                    </label>
-                                </div>
-                                <!-- Per-route Bark toggle removed: centralized control available in 域名配置 -->
-                                <div>
-                                    <label class="flex items-center text-sm">
-                                        <input type="checkbox" id="fullText" class="rounded border-gray-300 text-blue-600">
-                                        <span class="ml-2 text-gray-900 font-medium">启用全文抓取</span>
-                                    </label>
-                                    <div id="fullTextConfig" class="hidden mt-2 ml-6">
-                                        <label class="block text-xs font-medium text-gray-500 mb-1">全文选择器</label>
-                                        <input type="text" id="fullTextSelector" class="block w-full rounded-md border-gray-300 border p-2 text-sm font-mono bg-gray-50" placeholder=".article-content">
+                                    <!-- Right Column: Selectors -->
+                                    <div class="border-l border-gray-100 pl-0 lg:pl-4" id="section-selectors">
+                                        <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">选择器配置
+                                        </h4>
+                                        <div class="space-y-2">
+                                            <div>
+                                                <div class="flex justify-between">
+                                                    <label
+                                                        class="block text-[10px] font-medium text-gray-500 mb-0.5">列表项
+                                                        (Item Selector)</label>
+                                                </div>
+                                                <input type="text" id="itemSelector"
+                                                    class="block w-full h-7 rounded border-gray-300 border px-2 text-xs font-mono bg-yellow-50 focus:ring-1 focus:ring-yellow-500"
+                                                    placeholder=".post-item" required>
+                                            </div>
+
+                                            <div class="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label class="block text-[10px] font-medium text-gray-500 mb-0.5">标题
+                                                        (Title)</label>
+                                                    <input type="text" id="titleSelector"
+                                                        class="block w-full h-7 rounded border-gray-300 border px-2 text-xs font-mono bg-gray-50 focus:ring-1 focus:ring-blue-500"
+                                                        placeholder="h2 a">
+                                                </div>
+                                                <div>
+                                                    <div class="flex justify-between items-center mb-0.5">
+                                                        <label class="block text-[10px] font-medium text-gray-500">链接
+                                                            (Link)</label>
+                                                        <label
+                                                            class="flex items-center text-[10px] text-blue-600 cursor-pointer"
+                                                            title="自动拼接域名">
+                                                            <input type="checkbox" id="linkNeedJoin"
+                                                                class="h-3 w-3 rounded border-gray-300 mr-0.5"
+                                                                onchange="document.getElementById('linkBaseUrl').classList.toggle('hidden', !this.checked)">
+                                                            拼接
+                                                        </label>
+                                                    </div>
+                                                    <input type="text" id="linkSelector"
+                                                        class="block w-full h-7 rounded border-gray-300 border px-2 text-xs font-mono bg-gray-50 focus:ring-1 focus:ring-blue-500"
+                                                        placeholder="a">
+                                                    <input type="text" id="linkBaseUrl"
+                                                        class="hidden block w-full h-6 mt-1 rounded border-gray-300 border px-2 text-[10px] bg-gray-50 placeholder-gray-400"
+                                                        placeholder="Base URL">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-[10px] font-medium text-gray-500 mb-0.5">描述
+                                                        (Desc)</label>
+                                                    <input type="text" id="descSelector"
+                                                        class="block w-full h-7 rounded border-gray-300 border px-2 text-xs font-mono bg-gray-50 focus:ring-1 focus:ring-blue-500"
+                                                        placeholder=".desc">
+                                                </div>
+                                                <div>
+                                                    <div class="flex justify-between items-center mb-0.5">
+                                                        <label class="block text-[10px] font-medium text-gray-500">日期
+                                                            (Date)</label>
+                                                        <label
+                                                            class="flex items-center text-[10px] text-blue-600 cursor-pointer">
+                                                            <input type="checkbox" id="timestampMode"
+                                                                class="h-3 w-3 rounded border-gray-300 mr-0.5">
+                                                            TS
+                                                        </label>
+                                                    </div>
+                                                    <input type="text" id="dateSelector"
+                                                        class="block w-full h-7 rounded border-gray-300 border px-2 text-xs font-mono bg-gray-50 focus:ring-1 focus:ring-blue-500"
+                                                        placeholder=".date">
+                                                    <div id="timestampConfig" class="hidden mt-1">
+                                                        <select id="timestampUnit"
+                                                            class="block w-20 h-6 rounded border-gray-300 border px-1 text-[10px] bg-white">
+                                                            <option value="ms">毫秒</option>
+                                                            <option value="s">秒</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                                <div class="hidden">
+                                    <!-- Hidden Inputs/Logic placeholders used by scripts -->
+                                </div>
+                            </form>
                         </div>
 
                         <!-- 操作按钮区域 -->
                         <div id="section-actions" class="pt-4 flex gap-3 bg-white py-3 border-t">
-                            <button type="button" onclick="testRule()" class="flex-1 bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 text-sm font-medium">
+                            <button type="button" onclick="testRule()"
+                                class="flex-1 bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 text-sm font-medium">
                                 测试规则
                             </button>
                             <button type="submit" class="flex-1 btn-primary py-2 px-4 rounded-md text-sm font-medium">
                                 保存路由
                             </button>
                         </div>
-                        
-                        <!-- Debug Logs -->
-                        <div id="debugLogs" class="hidden mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md max-h-48 overflow-y-auto"></div>
-                    </form>
-                </div>
 
-                <!-- Preview Column -->
-                <div class="w-full lg:w-1/2 bg-white p-6 rounded-lg shadow border border-gray-200">
-                    <h3 id="previewTitle" class="text-base font-semibold text-gray-900 mb-4">可视化预览</h3>
-                    <div id="previewArea" class="overflow-y-auto">
-                        <!-- 默认显示可视化选择器预览 -->
-                        <div id="visualPreview" class="h-full">
-                            <div id="previewToolbar" class="mb-3 flex gap-2 border-b pb-2 overflow-x-auto">
-                                <button type="button" onclick="setPreviewMode('item')" id="preview-btn-item" class="tool-btn cursor-pointer bg-blue-100 text-blue-700 border-blue-300 px-3 py-1 text-xs rounded border whitespace-nowrap transition-colors">条目</button>
-                                <button type="button" onclick="setPreviewMode('title')" id="preview-btn-title" class="tool-btn cursor-pointer bg-white text-gray-700 px-3 py-1 text-xs rounded border border-gray-300 whitespace-nowrap transition-colors">标题</button>
-                                <button type="button" onclick="setPreviewMode('link')" id="preview-btn-link" class="tool-btn cursor-pointer bg-white text-gray-700 px-3 py-1 text-xs rounded border border-gray-300 whitespace-nowrap transition-colors">链接</button>
-                                <button type="button" onclick="setPreviewMode('desc')" id="preview-btn-desc" class="tool-btn cursor-pointer bg-white text-gray-700 px-3 py-1 text-xs rounded border border-gray-300 whitespace-nowrap transition-colors">描述</button>
-                                <button type="button" onclick="setPreviewMode('date')" id="preview-btn-date" class="tool-btn cursor-pointer bg-white text-gray-700 px-3 py-1 text-xs rounded border border-gray-300 whitespace-nowrap transition-colors">日期</button>
-                            </div>
-                            <iframe id="previewFrame" class="w-full border-0" style="height: calc(100vh - 280px); min-height: 400px;"></iframe>
-                            <div id="jsonPreview" class="hidden w-full overflow-auto bg-gray-900 text-gray-100 p-4 font-mono text-sm" style="height: calc(100vh - 280px); min-height: 400px;"></div>
+                        <!-- Debug Logs -->
+                        <div id="debugLogs"
+                            class="hidden mt-4 p-3 bg-blue-50 border border-blue-200 rounded-md max-h-48 overflow-y-auto">
                         </div>
-                        <!-- 测试结果区域（初始隐藏） -->
-                        <div id="testResult" class="hidden"></div>
+                        </form>
+                    </div>
+
+                    <!-- Preview Column -->
+                    <div
+                        class="w-full bg-white p-6 rounded-lg shadow border border-gray-200 h-[calc(100vh-140px)] flex flex-col">
+                        <h3 id="previewTitle" class="text-base font-semibold text-gray-900 mb-4">可视化预览</h3>
+                        <div id="previewArea" class="overflow-y-auto">
+                            <!-- 默认显示可视化选择器预览 -->
+                            <div id="visualPreview" class="h-full">
+                                <div id="previewToolbar" class="mb-3 border-b pb-2">
+                                    <div class="flex gap-2 overflow-x-auto mb-2">
+                                        <button type="button" onclick="setPreviewMode('item')" id="preview-btn-item"
+                                            class="tool-btn cursor-pointer bg-blue-100 text-blue-700 border-blue-300 px-3 py-1 text-xs rounded border whitespace-nowrap transition-colors">条目</button>
+                                        <button type="button" onclick="setPreviewMode('title')" id="preview-btn-title"
+                                            class="tool-btn cursor-pointer bg-white text-gray-700 px-3 py-1 text-xs rounded border border-gray-300 whitespace-nowrap transition-colors">标题</button>
+                                        <button type="button" onclick="setPreviewMode('link')" id="preview-btn-link"
+                                            class="tool-btn cursor-pointer bg-white text-gray-700 px-3 py-1 text-xs rounded border border-gray-300 whitespace-nowrap transition-colors">链接</button>
+                                        <button type="button" onclick="setPreviewMode('desc')" id="preview-btn-desc"
+                                            class="tool-btn cursor-pointer bg-white text-gray-700 px-3 py-1 text-xs rounded border border-gray-300 whitespace-nowrap transition-colors">描述</button>
+                                        <button type="button" onclick="setPreviewMode('date')" id="preview-btn-date"
+                                            class="tool-btn cursor-pointer bg-white text-gray-700 px-3 py-1 text-xs rounded border border-gray-300 whitespace-nowrap transition-colors">日期</button>
+                                        <button type="button" onclick="toggleSniffer()" id="btn-sniffer"
+                                            class="tool-btn cursor-pointer bg-indigo-50 text-indigo-700 border-indigo-200 px-3 py-1 text-xs rounded border whitespace-nowrap transition-colors flex items-center gap-1 ml-auto">
+                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                    d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0">
+                                                </path>
+                                            </svg>
+                                            网络嗅探
+                                        </button>
+                                    </div>
+                                    <div id="snifferResults"
+                                        class="hidden flex-col gap-2 mb-2 p-2 bg-gray-50 border border-indigo-100 rounded max-h-48 overflow-y-auto shadow-inner text-xs">
+                                        <div class="text-gray-400 text-center py-2">等待请求... 请在页面中进行操作 (点击/滚动)</div>
+                                    </div>
+                                    <!-- AdGuard-style Selection Refiner -->
+                                    <div id="selectionRefineToolbar"
+                                        class="hidden flex items-center gap-3 bg-blue-50 p-2 rounded border border-blue-100">
+                                        <span class="text-xs font-bold text-blue-800">🔍 调整范围:</span>
+                                        <div class="flex items-center gap-2 flex-1">
+                                            <button type="button" onclick="adjustSelectionDepth(-1)"
+                                                class="p-1 rounded text-blue-600 hover:bg-blue-100 transition-colors"
+                                                title="选中子元素 (缩小范围)">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                        stroke-width="2" d="M19 13l-7 7-7-7m14-8l-7 7-7-7"></path>
+                                                </svg>
+                                            </button>
+                                            <input type="range" id="depthSlider" min="0" max="5" value="0" step="1"
+                                                class="flex-1 h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                                                oninput="onDepthChange(this.value)">
+                                            <button type="button" onclick="adjustSelectionDepth(1)"
+                                                class="p-1 rounded text-blue-600 hover:bg-blue-100 transition-colors"
+                                                title="选中父元素 (扩大范围)">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor"
+                                                    viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round"
+                                                        stroke-width="2" d="M5 15l7-7 7 7"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                        <span id="depthLabel"
+                                            class="text-xs text-blue-600 font-mono w-16 text-right">当前: 0</span>
+                                    </div>
+                                </div>
+                                <iframe id="previewFrame" class="w-full border-0"
+                                    style="height: calc(100vh - 280px); min-height: 400px;"></iframe>
+                                <div id="jsonPreview"
+                                    class="hidden w-full overflow-auto bg-gray-900 text-gray-100 p-4 font-mono text-sm"
+                                    style="height: calc(100vh - 280px); min-height: 400px;"></div>
+                            </div>
+                            <!-- 测试结果区域（初始隐藏） -->
+                            <div id="testResult" class="hidden"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- List Page -->
+            <div id="page-list" class="page-content flex-1 overflow-y-auto p-6 bg-gray-50 hidden">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold text-gray-900 mb-1">路由列表</h2>
+                    <p class="text-sm text-gray-500">管理所有RSS订阅</p>
+                </div>
+                <div class="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+                    <div id="routeList" class="divide-y divide-gray-200">
+                        <!-- Items will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Folder Modal -->
+        <div id="folderModal"
+            class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+            <div class="relative p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white max-h-[90vh] flex flex-col">
+                <div class="mt-3 flex-1 flex flex-col overflow-hidden">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="folderModalTitle">编辑合集</h3>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">合集名称</label>
+                        <input type="text" id="folderNameInput"
+                            class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border"
+                            placeholder="例如: Tech">
+                        <p class="text-xs text-gray-500 mt-1">修改名称将移动所有选中路由到新合集</p>
+                    </div>
+
+                    <div class="mb-2 flex justify-between items-center">
+                        <label class="block text-sm font-medium text-gray-700">选择路由</label>
+                        <input type="text" id="folderRouteSearch" onkeyup="filterFolderRoutes()"
+                            class="text-xs border border-gray-300 rounded p-1 w-48" placeholder="搜索路由...">
+                    </div>
+
+                    <div class="border border-gray-200 rounded-md flex-1 overflow-y-auto bg-gray-50 p-2 min-h-[200px]"
+                        id="folderRouteList">
+                        <!-- Checkboxes injected here -->
+                    </div>
+
+                    <div class="items-center pt-4 mt-4 border-t flex justify-end gap-3">
+                        <button onclick="closeFolderModal()"
+                            class="px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md w-auto shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                            取消
+                        </button>
+                        <button onclick="saveFolder()" id="saveFolderBtn"
+                            class="px-4 py-2 bg-blue-600 text-white text-base font-medium rounded-md w-auto shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            保存
+                        </button>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- List Page -->
-        <div id="page-list" class="page-content flex-1 overflow-y-auto p-6 bg-gray-50 hidden">
-            <div class="mb-6">
-                <h2 class="text-2xl font-semibold text-gray-900 mb-1">路由列表</h2>
-                <p class="text-sm text-gray-500">管理所有RSS订阅</p>
-            </div>
-            <div class="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
-                <div id="routeList" class="divide-y divide-gray-200">
-                    <!-- Items will be injected here -->
-                </div>
-            </div>
-        </div>
-
-    </main>
-
-    <!-- Folder Modal -->
-    <div id="folderModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden overflow-y-auto h-full w-full z-50 flex items-center justify-center">
-        <div class="relative p-5 border w-full max-w-2xl shadow-lg rounded-md bg-white max-h-[90vh] flex flex-col">
-            <div class="mt-3 flex-1 flex flex-col overflow-hidden">
-                <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="folderModalTitle">编辑合集</h3>
-                
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-1">合集名称</label>
-                    <input type="text" id="folderNameInput" class="shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md p-2 border" placeholder="例如: Tech">
-                    <p class="text-xs text-gray-500 mt-1">修改名称将移动所有选中路由到新合集</p>
-                </div>
-                
-                <div class="mb-2 flex justify-between items-center">
-                    <label class="block text-sm font-medium text-gray-700">选择路由</label>
-                    <input type="text" id="folderRouteSearch" onkeyup="filterFolderRoutes()" class="text-xs border border-gray-300 rounded p-1 w-48" placeholder="搜索路由...">
-                </div>
-                
-                <div class="border border-gray-200 rounded-md flex-1 overflow-y-auto bg-gray-50 p-2 min-h-[200px]" id="folderRouteList">
-                    <!-- Checkboxes injected here -->
-                </div>
-                
-                <div class="items-center pt-4 mt-4 border-t flex justify-end gap-3">
-                    <button onclick="closeFolderModal()" class="px-4 py-2 bg-gray-200 text-gray-800 text-base font-medium rounded-md w-auto shadow-sm hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
-                        取消
-                    </button>
-                    <button onclick="saveFolder()" id="saveFolderBtn" class="px-4 py-2 bg-blue-600 text-white text-base font-medium rounded-md w-auto shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                        保存
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- JS_INJECT_POINT -->
+        <!-- JS_INJECT_POINT -->
 </body>
+
 </html>

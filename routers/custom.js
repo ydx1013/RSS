@@ -2,33 +2,111 @@
 import * as cheerio from 'cheerio';
 import { parseHTML } from 'linkedom';
 import { itemsToRss } from '../rss.js';
-import { fetchWithHeaders } from '../utils/fetcher.js';
+import { fetchWithHeaders, fetchWithRetry } from '../utils/fetcher.js';
 import { decodeText } from '../utils/helpers.js';
 
-export default async function (params, config) {
-    const { format = 'rss' } = params; // 默认RSS格式，由URL参数控制
-    const { 
-        url, 
-        type = 'html', // 'html', 'xpath', 'json'
-        itemSelector, 
-        titleSelector, 
-        linkSelector, 
-        linkNeedJoin = false, // 是否拼接域名（针对相对链接）
-        linkBaseUrl = '', // 自定义拼接域名
-        descSelector, 
+import feedRouter from './feed.js';
+import jsonRouter from './json.js';
+
+export default async function (params, config = {}) {
+    const { format = 'rss' } = params;
+    let {
+        url,
+        type, // 'html', 'xpath', 'json', 'rss', 'feed', 'auto' (or undefined)
+        itemSelector,
+        titleSelector,
+        linkSelector,
+        linkNeedJoin = false,
+        linkBaseUrl = '',
+        descSelector,
         dateSelector,
         channelTitle,
         channelDesc,
-        maxItems = 20, // 从配置中读取，默认20条
-        fullText = false, // 是否抓取全文
-        fullTextSelector = '', // 全文内容选择器（用于抓取文章详情页）
-        encoding = 'auto', // 字符编码: 'auto', 'utf-8', 'gbk', 'gb2312', 'big5'等
-        timestampMode = false, // 是否为时间戳格式
-        timestampUnit = 'ms' // 时间戳单位: 's'(秒) 或 'ms'(毫秒)
+        maxItems = 20,
+        fullText = false,
+        fullTextSelector = '',
+        encoding = 'auto',
+        timestampMode = false,
+        timestampUnit = 'ms',
+        domainConfig
     } = config;
 
+    if (!url && params.param) {
+        url = params.param;
+    }
+
     try {
-        const response = await fetchWithHeaders(url);
+        // --- Smart Router: Auto Identification & Delegation ---
+
+        // 1. Fetch or use input
+        let response;
+        if (config._inputResponse) {
+            response = config._inputResponse;
+        } else {
+            // Use fetchWithRetry for better robustness (mirrors)
+            // Extract Puppeteer settings
+            const usePuppeteer = config.usePuppeteer || false;
+            const puppeteerProxyUrl = domainConfig?.puppeteerUrl || '';
+
+            response = await fetchWithRetry(url, {
+                headers: {
+                    // Accept everything
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7'
+                },
+                usePuppeteer,
+                puppeteerProxyUrl,
+                puppeteerWaitSelector: itemSelector // Wait for items to appear
+            }, domainConfig?.groups || []);
+        }
+
+        if (!response.ok) {
+            throw new Error(`HTTP Error: ${response.status}`);
+        }
+
+        let detectedType = type;
+
+        // 2. Auto-Detect if type is missing or 'auto'
+        if (!detectedType || detectedType === 'auto') {
+            const contentType = (response.headers.get('content-type') || '').toLowerCase();
+
+            // Clone response to peek at body (limit checks to first 1KB)
+            try {
+                const clone = response.clone();
+                const textStart = (await clone.text()).substring(0, 1000).trim();
+
+                if (contentType.includes('json') || textStart.startsWith('{') || textStart.startsWith('[')) {
+                    detectedType = 'json';
+                } else if (contentType.includes('xml') || textStart.includes('<rss') || textStart.includes('<feed') || textStart.includes('<channel')) {
+                    detectedType = 'feed'; // maps to feedRouter
+                } else if (contentType.includes('html') || textStart.includes('<!DOCTYPE html') || textStart.includes('<html')) {
+                    detectedType = 'html'; // maps to customRouter logic
+                } else {
+                    detectedType = 'html'; // default fallback
+                }
+
+                console.log(`[Smart Router] Auto-detected type '${detectedType}' for ${url}`);
+            } catch (e) {
+                console.warn('[Smart Router] Detection failed, defaulting to HTML', e);
+                detectedType = 'html';
+            }
+        }
+
+        // 3. Delegate
+        if (detectedType === 'json') {
+            // Pass original response to jsonRouter
+            return jsonRouter(params, { ...config, _inputResponse: response });
+        }
+
+        if (detectedType === 'rss' || detectedType === 'feed' || detectedType === 'atom') {
+            return feedRouter(params, { ...config, _inputResponse: response });
+        }
+
+        // Update mode based on detection (e.g. 'auto' -> 'html')
+        if (detectedType) {
+            type = detectedType;
+        }
+
+        // If 'html' or 'xpath', continue with this function (Scraping Logic)
 
         if (!response.ok) {
             throw new Error(`HTTP Error: ${response.status}`);
@@ -61,7 +139,7 @@ export default async function (params, config) {
                 // Ensure relative path
                 let safePath = xpath;
                 if (!safePath.startsWith('.') && !safePath.startsWith('/')) safePath = './' + safePath;
-                
+
                 try {
                     const result = document.evaluate(safePath, context, null, 2, null); // STRING_TYPE
                     return result.stringValue?.trim() || '';
@@ -78,23 +156,23 @@ export default async function (params, config) {
                     // Try string value first (e.g. @href)
                     const result = document.evaluate(safePath, context, null, 2, null);
                     if (result.stringValue) return result.stringValue;
-                    
+
                     // Try node value
                     const nodeResult = document.evaluate(safePath, context, null, 9, null); // FIRST_ORDERED_NODE_TYPE
                     const node = nodeResult.singleNodeValue;
                     if (node) {
                         return node.getAttribute('href') || node.textContent;
                     }
-                } catch (e) {}
+                } catch (e) { }
                 return '';
             };
 
             const listNodes = getNodes(itemSelector, document);
-            
+
             items = listNodes.slice(0, maxItems).map(el => {
                 const title = getText(titleSelector, el);
                 let link = getLink(linkSelector, el);
-                
+
                 // Description: Try to get innerHTML if possible, otherwise text
                 let description = '';
                 if (descSelector) {
@@ -105,7 +183,7 @@ export default async function (params, config) {
                         const node = nodeResult.singleNodeValue;
                         if (node) description = node.innerHTML || node.textContent;
                         else description = getText(descSelector, el);
-                    } catch(e) {}
+                    } catch (e) { }
                 }
 
                 const pubDate = getText(dateSelector, el);
@@ -115,9 +193,9 @@ export default async function (params, config) {
                     try {
                         const baseUrl = linkBaseUrl ? new URL(linkBaseUrl) : new URL(url);
                         link = new URL(link, baseUrl).href;
-                    } catch(e) {}
+                    } catch (e) { }
                 }
-                
+
                 // 处理日期转换
                 let formattedPubDate = new Date().toUTCString();
                 if (pubDate) {
@@ -129,7 +207,7 @@ export default async function (params, config) {
                         } else {
                             formattedPubDate = new Date(pubDate).toUTCString();
                         }
-                    } catch(e) {
+                    } catch (e) {
                         console.error('日期解析错误:', e);
                         formattedPubDate = new Date().toUTCString();
                     }
@@ -153,7 +231,7 @@ export default async function (params, config) {
 
             list.slice(0, maxItems).each((i, el) => {
                 const $el = $(el);
-                
+
                 // Title: 智能提取
                 let title = '';
                 if (titleSelector) {
@@ -162,12 +240,12 @@ export default async function (params, config) {
                         title = titleEl.first().text().trim();
                     }
                 }
-                
+
                 // 如果还没有标题，使用回退方案
                 if (!title) {
                     title = $el.find('a').first().text().trim() || $el.text().trim().substring(0, 50);
                 }
-                
+
                 // Link: try to find with selector, or use first <a> tag
                 let link = '';
                 if (linkSelector) {
@@ -176,17 +254,23 @@ export default async function (params, config) {
                 } else {
                     link = $el.find('a').first().attr('href') || '';
                 }
-                
+
                 // Description: 提取 HTML 内容
                 let description = '';
                 if (descSelector) {
                     const descEl = $el.find(descSelector);
                     if (descEl.length > 0) {
+                        // FIX: Handle lazy images automatically
+                        descEl.find('img').each((_, img) => {
+                            const $img = $(img);
+                            const dataSrc = $img.attr('data-src') || $img.attr('data-original') || $img.attr('data-url') || $img.attr('data-image');
+                            if (dataSrc) $img.attr('src', dataSrc);
+                        });
                         description = descEl.first().html();
                     }
                 }
                 if (!description) description = title;
-                
+
                 // Date: 智能提取
                 let pubDate = '';
                 if (dateSelector) {
@@ -201,11 +285,11 @@ export default async function (params, config) {
                     try {
                         const baseUrl = linkBaseUrl ? new URL(linkBaseUrl) : new URL(url);
                         link = new URL(link, baseUrl).href;
-                    } catch(e) {
+                    } catch (e) {
                         console.error('URL parse error:', e);
                     }
                 }
-                
+
                 // 处理日期转换
                 let formattedPubDate = new Date().toUTCString();
                 if (pubDate) {
@@ -217,7 +301,7 @@ export default async function (params, config) {
                         } else {
                             formattedPubDate = new Date(pubDate).toUTCString();
                         }
-                    } catch(e) {
+                    } catch (e) {
                         console.error('日期解析错误:', e);
                         formattedPubDate = new Date().toUTCString();
                     }
@@ -238,7 +322,7 @@ export default async function (params, config) {
         // 全文抓取功能
         if (fullText && fullTextSelector && items.length > 0) {
             console.log(`[Full Text] Starting to fetch full content for ${items.length} items`);
-            
+
             const fullTextItems = [];
             for (let i = 0; i < items.length; i++) {
                 const item = items[i];
@@ -246,14 +330,14 @@ export default async function (params, config) {
                     fullTextItems.push(item);
                     continue;
                 }
-                
+
                 try {
                     // Ensure URL is absolute
                     let fetchUrl = item.link;
                     if (!fetchUrl.startsWith('http')) {
                         try {
                             fetchUrl = new URL(fetchUrl, url).href;
-                        } catch(e) {
+                        } catch (e) {
                             console.error(`[Full Text] Invalid URL: ${fetchUrl}`);
                             fullTextItems.push(item);
                             continue;
@@ -262,21 +346,28 @@ export default async function (params, config) {
 
                     console.log(`[Full Text] Fetching: ${fetchUrl}`);
                     const articleResp = await fetchWithHeaders(fetchUrl);
-                    
+
                     if (!articleResp.ok) {
                         console.error(`[Full Text] HTTP Error ${articleResp.status} for ${fetchUrl}`);
                         fullTextItems.push(item);
                         continue;
                     }
-                    
+
                     const articleHtml = await decodeText(articleResp, encoding);
                     const $article = cheerio.load(articleHtml);
-                    
+
                     // 提取全文内容
                     let fullContent = '';
                     if (fullTextSelector) {
                         const contentEl = $article(fullTextSelector);
                         if (contentEl.length > 0) {
+                            // FIX: Handle lazy images automatically in full text
+                            contentEl.find('img').each((_, img) => {
+                                const $img = $article(img);
+                                const dataSrc = $img.attr('data-src') || $img.attr('data-original') || $img.attr('data-url') || $img.attr('data-image');
+                                if (dataSrc) $img.attr('src', dataSrc);
+                            });
+
                             // Handle multiple matches (e.g. selector is "p")
                             if (contentEl.length > 1) {
                                 fullContent = contentEl.map((i, el) => $article(el).html()).get().join('<br/>');
@@ -285,7 +376,7 @@ export default async function (params, config) {
                             }
                         }
                     }
-                    
+
                     // 如果成功获取到全文，替换description
                     if (fullContent && fullContent.trim()) {
                         fullTextItems.push({
@@ -297,7 +388,7 @@ export default async function (params, config) {
                         console.log(`[Full Text] No content found for: ${fetchUrl}`);
                         fullTextItems.push(item);
                     }
-                    
+
                     // 添加延迟避免请求过快
                     if (i < items.length - 1) {
                         await new Promise(resolve => setTimeout(resolve, 200));
@@ -307,7 +398,7 @@ export default async function (params, config) {
                     fullTextItems.push(item);
                 }
             }
-            
+
             items = fullTextItems;
             console.log(`[Full Text] Completed. ${items.length} items processed.`);
         }

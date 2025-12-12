@@ -20,21 +20,27 @@ export function itemsToRss(items, channel, format = 'atom') {
     }
 }
 
+
+function sanitizeCdata(text) {
+    if (!text) return '';
+    return text.replace(/]]>/g, ']]]]><![CDATA[>');
+}
+
 function generateRss(items, channel) {
     const itemsXml = items.map(item => {
         // title和link的文本内容需要转义，因为它们是XML文本节点
         const title = item.title ? escapeXml(item.title) : 'Untitled';
         const link = item.link || '#';
-        const description = item.description ? `<![CDATA[${item.description}]]>` : '';
+        const description = item.description ? `<![CDATA[${sanitizeCdata(item.description)}]]>` : '';
         const pubDate = item.pubDate ? new Date(item.pubDate).toUTCString() : new Date().toUTCString();
         const guid = item.guid || item.link || '#';
         const author = item.author ? `<author>${escapeXml(item.author)}</author>` : '';
-        
+
         // 只在有完整enclosure信息时才添加enclosure标签
-        const enclosure = item.enclosure?.url ? 
-            `<enclosure url="${escapeXml(item.enclosure.url)}" length="${item.enclosure.length || 0}" type="${escapeXml(item.enclosure.type || 'application/octet-stream')}" />` 
+        const enclosure = item.enclosure?.url ?
+            `<enclosure url="${escapeXml(item.enclosure.url)}" length="${item.enclosure.length || 0}" type="${escapeXml(item.enclosure.type || 'application/octet-stream')}" />`
             : '';
-        
+
         return `
         <item>
             <title>${title}</title>
@@ -50,7 +56,7 @@ function generateRss(items, channel) {
     const channelTitle = channel.title ? escapeXml(channel.title) : 'RSS Feed';
     const channelLink = channel.link || '#';
     const channelDesc = channel.description ? escapeXml(channel.description) : '';
-    
+
     const imageXml = channel.image?.url ? `
         <image>
             <url>${channel.image.url}</url>
@@ -80,9 +86,9 @@ function generateAtom(items, channel) {
         const published = item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString();
         const updated = item.updated ? new Date(item.updated).toISOString() : published;
         const author = item.author ? `<author><name>${escapeXml(item.author)}</name></author>` : '';
-        const summary = item.description ? `<summary type="html"><![CDATA[${item.description.substring(0, 200)}]]></summary>` : '';
-        const content = item.description ? `<content type="html"><![CDATA[${item.description}]]></content>` : '';
-        
+        const summary = item.description ? `<summary type="html"><![CDATA[${sanitizeCdata(item.description).substring(0, 200)}]]></summary>` : '';
+        const content = item.description ? `<content type="html"><![CDATA[${sanitizeCdata(item.description)}]]></content>` : '';
+
         return `
   <entry>
     <title>${title}</title>
@@ -132,31 +138,31 @@ function generateJsonFeed(items, channel) {
                 content_html: item.description || "",
                 date_published: item.pubDate ? new Date(item.pubDate).toISOString() : new Date().toISOString()
             };
-            
+
             if (item.author) {
                 feedItem.author = { name: item.author };
             }
-            
+
             if (channel.image) {
                 feedItem.image = channel.image;
             }
-            
+
             // 添加summary（从description生成，去除CDATA）
             if (item.description) {
                 const plainText = item.description.replace(/<!\[CDATA\[(.*?)\]\]>/s, '$1').replace(/<[^>]*>/g, '');
                 feedItem.summary = plainText.substring(0, 200);
             }
-            
+
             return feedItem;
         })
     };
-    
+
     // 只在有值时添加可选字段
     if (channel.image) {
         jsonFeed.icon = channel.image;
         jsonFeed.favicon = channel.image;
     }
-    
+
     return JSON.stringify(jsonFeed, null, 2);
 }
 
