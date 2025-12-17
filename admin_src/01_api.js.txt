@@ -1,0 +1,38 @@
+// 添加认证头到所有API请求
+async function authFetch(url, options = {}) {
+    const token = sessionStorage.getItem('adminToken');
+    options.headers = options.headers || {};
+    options.headers['Authorization'] = 'Bearer ' + (token || '');
+
+    const response = await fetch(url, options);
+
+    // 如果401未授权，重新显示登录页面
+    if (response.status === 401) {
+        sessionStorage.removeItem('adminToken');
+        document.getElementById('adminPanel').classList.add('hidden');
+        document.getElementById('loginPage').classList.remove('hidden');
+        throw new Error('未授权');
+    }
+
+    return response;
+}
+
+// 检查认证状态
+async function checkAuth() {
+    const token = sessionStorage.getItem('adminToken');
+
+    try {
+        const response = await fetch('/admin/check', {
+            headers: { 'Authorization': 'Bearer ' + (token || '') }
+        });
+
+        if (response.ok) {
+            document.getElementById('adminPanel').classList.remove('hidden');
+            loadRoutes();
+        } else {
+            document.getElementById('loginPage').classList.remove('hidden');
+        }
+    } catch (err) {
+        document.getElementById('loginPage').classList.remove('hidden');
+    }
+}

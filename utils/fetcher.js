@@ -45,27 +45,74 @@ export async function fetchWithHeaders(url, options = {}) {
     if (options.usePuppeteer && options.puppeteerProxyUrl) {
         try {
             // Construct proxy URL: e.g. https://my-browserless.com/function?url=...
-            const proxyUrl = new URL(options.puppeteerProxyUrl);
-            proxyUrl.searchParams.append('url', url);
-            // Optionally pass selector to wait for if needed
-            if (options.puppeteerWaitSelector) {
-                proxyUrl.searchParams.append('wait', options.puppeteerWaitSelector);
-            }
-            console.log(`[Fetch] Using Puppeteer Proxy: ${proxyUrl.toString()}`);
+            let proxyUrl = new URL(options.puppeteerProxyUrl);
+            const isBrowserlessHttp = proxyUrl.pathname.includes('/content') || proxyUrl.pathname.includes('/scrape') || proxyUrl.pathname.includes('/pdf') || proxyUrl.pathname.includes('/screenshot');
 
-            // For proxy, we might not need all the browser headers, or we might want to pass them?
-            // Usually proxy handles UA. Let's keep base headers but fetch the proxy URL.
-            return fetch(proxyUrl.toString(), {
-                method: options.method || 'GET',
-                headers: {
-                    ...baseHeaders,
-                    // Add any specific auth headers for the proxy if needed (not implemented yet)
+            let method = options.method || 'GET';
+            let body = undefined;
+            let headers = { ...baseHeaders };
+
+            if (isBrowserlessHttp) {
+                // Browserless HTTP APIs require POST with JSON body
+                method = 'POST';
+                headers['Content-Type'] = 'application/json';
+                const payload = { url: url };
+                if (options.puppeteerWaitSelector) {
+                    // Browserless /content API validation:
+                    // Error 1: "waitFor" is not allowed.
+                    // Error 2: "waitForSelector" must be of type object.
+                    // Conclusion: We MUST use "waitForSelector" AND it must be an object { selector: ... }.
+                    const waitVal = options.puppeteerWaitSelector.trim();
+                    payload.waitForSelector = {
+                        selector: waitVal,
+                        timeout: 10000 // default 10s wait
+                    };
                 }
+
+                // ADDED: Default to networkidle2 to help with "automatic" waiting for SPAs
+                // This tells Browserless to wait until there are no more than 2 network connections for at least 500ms.
+                // This often negates the need for a specific Wait Selector for simple SPAs.
+                payload.gotoOptions = {
+                    waitUntil: 'networkidle2'
+                };
+                // Merge other potential options? For now just url/waitForSelector
+                body = JSON.stringify(payload);
+                console.log(`[Fetch] Using Browserless POST API: ${proxyUrl.toString()}, payload: ${body}`);
+            } else {
+                // Legacy / Custom Proxy (GET)
+                proxyUrl.searchParams.append('url', url);
+                if (options.puppeteerWaitSelector) {
+                    proxyUrl.searchParams.append('wait', options.puppeteerWaitSelector);
+                }
+                console.log(`[Fetch] Using Puppeteer GET Proxy: ${proxyUrl.toString()}`);
+            }
+
+            const puppeteerResp = await fetch(proxyUrl.toString(), {
+                method: method,
+                headers: headers,
+                body: body
             });
+
+            // Check if Puppeteer request succeeded
+            if (puppeteerResp.ok) {
+                console.log('[Fetch] Puppeteer request succeeded');
+                return puppeteerResp;
+            }
+
+            // If rate limited (429) or server error (5xx), fallback to normal fetch
+            const fallbackStatuses = [429, 500, 502, 503, 504];
+            if (fallbackStatuses.includes(puppeteerResp.status)) {
+                console.warn(`[Fetch] Puppeteer returned ${puppeteerResp.status}, falling back to normal fetch`);
+                // Continue to normal fetch below
+            } else {
+                // For other errors (400, 401, 403, 404), return the error response
+                console.warn(`[Fetch] Puppeteer returned ${puppeteerResp.status}, returning error`);
+                return puppeteerResp;
+            }
         } catch (e) {
-            console.error('Puppeteer Proxy URL construction failed:', e);
-            // Fallback to normal fetch? Or throw? Throwing is better as user explicitly asked for puppeteer.
-            throw new Error('Puppeteer Proxy configuration error: ' + e.message);
+            console.error('Puppeteer Proxy request failed:', e);
+            console.warn('[Fetch] Falling back to normal fetch due to Puppeteer error');
+            // Continue to normal fetch below
         }
     }
 

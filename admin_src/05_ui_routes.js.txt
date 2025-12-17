@@ -1,0 +1,258 @@
+// --- Data Logic ---
+let cachedRoutes = {};
+
+// Pagination State
+let currentPage = 1;
+let pageSize = 20; // Default, recalculated based on layout
+let totalRoutes = 0;
+const DEFAULT_ROWS_PER_PAGE = 5; // Show 5 complete rows per page
+
+async function loadRoutes(page) {
+    if (page) currentPage = page;
+    const listEl = document.getElementById('routeList');
+    const container = document.getElementById('page-list');
+
+    // Calculate pageSize based on layout settings (columns × rows)
+    try {
+        const layoutSettings = JSON.parse(localStorage.getItem('layout.routes') || '{}');
+        let perRow = parseInt(layoutSettings.perRow || 3, 10) || 3;
+        // Apply responsive limits
+        const w = window.innerWidth || document.documentElement.clientWidth;
+        if (w < 640) perRow = 1;
+        else if (w < 768) perRow = Math.min(perRow, 2);
+        pageSize = perRow * DEFAULT_ROWS_PER_PAGE;
+        console.log(`[RSS Admin] PageSize: ${perRow} cols × ${DEFAULT_ROWS_PER_PAGE} rows = ${pageSize}`);
+    } catch (e) {
+        pageSize = 20;
+    }
+
+    // Show loading state
+    if (listEl) {
+        listEl.innerHTML = '<div class="col-span-full p-10 text-center text-gray-500 flex flex-col items-center justify-center h-40"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>加载中...</div>';
+    }
+
+    // Remove old pagination
+    const oldPag = document.getElementById('paginationControls');
+    if (oldPag) oldPag.remove();
+
+    try {
+        // Ensure API_BASE is defined
+        const url = (typeof API_BASE !== 'undefined' ? API_BASE : '/api/routes') + `?page=${currentPage}&pageSize=${pageSize}`;
+        const res = await authFetch(url);
+
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+        }
+
+        let data = await res.json();
+
+        // Handle both paginated and legacy formats
+        let routes = {};
+        if (data.data) {
+            routes = data.data;
+            totalRoutes = data.total || Object.keys(routes).length;
+            currentPage = data.page || currentPage;
+        } else {
+            routes = data;
+            totalRoutes = Object.keys(routes).length;
+        }
+
+        // Debug log
+        console.log(`[RSS Admin] Loaded ${Object.keys(routes).length} routes (Page ${currentPage}, Total ${totalRoutes})`);
+
+        cachedRoutes = routes;
+
+        if (typeof renderList === 'function') {
+            renderList(routes);
+        } else {
+            console.error('renderList is not defined');
+            throw new Error('Frontend Error: renderList missing');
+        }
+
+        // Render Pagination Controls
+        if (totalRoutes > pageSize && typeof renderPagination === 'function') {
+            // Check if container exists, otherwise find fallback
+            const target = document.getElementById('page-list') || document.getElementById('routeList').parentNode;
+            if (target) renderPagination(target);
+        }
+
+        if (typeof updateStats === 'function') updateStats();
+    } catch (e) {
+        console.error('loadRoutes error:', e);
+        if (listEl) listEl.innerHTML = '<div class="col-span-full p-4 text-center text-red-500">加载失败: ' + (e.message || 'Unknown Error') + '</div>';
+    }
+}
+
+function renderPagination(container) {
+    let el = document.getElementById('paginationControls');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'paginationControls';
+        el.className = 'mt-4 flex items-center justify-between bg-white px-4 py-3 sm:px-6 shadow rounded-lg border border-gray-200';
+        // Find where to append: after the list container
+        const listContainer = document.querySelector('#page-list .bg-white.shadow');
+        if (listContainer && listContainer.parentNode) {
+            listContainer.parentNode.insertBefore(el, listContainer.nextSibling);
+        } else {
+            container.appendChild(el);
+        }
+    }
+
+    const totalPages = Math.ceil(totalRoutes / pageSize);
+    const startItem = (currentPage - 1) * pageSize + 1;
+    const endItem = Math.min(currentPage * pageSize, totalRoutes);
+
+    el.innerHTML = `
+        <div class="flex-1 flex justify-between sm:hidden">
+            <button onclick="loadRoutes(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}">
+                上一页
+            </button>
+            <button onclick="loadRoutes(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''} class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 ${currentPage >= totalPages ? 'opacity-50 cursor-not-allowed' : ''}">
+                下一页
+            </button>
+        </div>
+        <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div>
+                <p class="text-sm text-gray-700">
+                    显示 <span class="font-medium">${startItem}</span> 到 <span class="font-medium">${endItem}</span> 条，共 <span class="font-medium">${totalRoutes}</span> 条
+                </p>
+            </div>
+            <div>
+                <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button onclick="loadRoutes(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}">
+                        <span class="sr-only">上一页</span>
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>
+                    </button>
+                    
+                    <!-- Simple Page Display -->
+                    <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                        第 ${currentPage} / ${totalPages} 页
+                    </span>
+
+                    <button onclick="loadRoutes(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''} class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${currentPage >= totalPages ? 'opacity-50 cursor-not-allowed' : ''}">
+                        <span class="sr-only">下一页</span>
+                        <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" /></svg>
+                    </button>
+                </nav>
+            </div>
+        </div>
+    `;
+}
+
+function renderList(forceRoutes = null) {
+    console.log('[RSS Admin] renderList called');
+    const listEl = document.getElementById('routeList');
+    if (!listEl) {
+        console.error('[RSS Admin] Error: #routeList not found!');
+        return;
+    }
+
+    listEl.innerHTML = '';
+    listEl.className = 'grid gap-4 p-4';
+
+    const routesToRender = forceRoutes || cachedRoutes || {};
+    const keys = Object.keys(routesToRender);
+    console.log(`[RSS Admin] Rendering ${keys.length} items`);
+
+    // Apply route layout settings with responsive column limits
+    try {
+        const s = JSON.parse(localStorage.getItem('layout.routes') || '{}');
+        let perRow = parseInt(s.perRow || 3, 10) || 3;
+        try {
+            const w = window.innerWidth || document.documentElement.clientWidth;
+            if (w < 640) perRow = 1;
+            else if (w < 768) perRow = Math.min(perRow, 2);
+        } catch (e) { }
+        listEl.style.gridTemplateColumns = `repeat(${perRow}, minmax(0, 1fr))`;
+    } catch (e) { }
+
+    if (keys.length === 0) {
+        listEl.innerHTML = '<div class="col-span-full p-6 text-center text-gray-500 text-sm">此页无数据</div>';
+        console.log('[RSS Admin] Debug: No data to render');
+        return;
+    }
+
+    // 获取选中的 Token
+    const tokenSelect = document.getElementById('tokenContextSelect');
+    let tokenParam = '';
+    let tokenName = '';
+    if (tokenSelect && tokenSelect.value) {
+        tokenParam = '&token=' + encodeURIComponent(tokenSelect.value);
+        if (tokenSelect.selectedIndex >= 0) {
+            tokenName = tokenSelect.options[tokenSelect.selectedIndex].text;
+        }
+    }
+
+    keys.forEach((key, index) => {
+        const config = routesToRender[key];
+        if (!config) return;
+
+        const li = document.createElement('div');
+
+        // Append token to links
+        const rssLink = `/?custom=${key}.rss${tokenParam}`;
+        const atomLink = `/?custom=${key}.atom${tokenParam}`;
+        const jsonLink = `/?custom=${key}.json${tokenParam}`;
+
+        const tokenBadge = tokenParam ? `<span class="badge bg-indigo-100 text-indigo-700 text-xs border border-indigo-200" title="链接已附带 Token: ${escapeHtml(tokenName)}">🔑 ${escapeHtml(tokenName.split(' ')[0])}</span>` : '';
+
+        li.className = 'bg-white rounded-lg shadow border border-gray-200 hover:shadow-md transition-shadow flex flex-col ' + (tokenParam ? 'ring-1 ring-indigo-100' : '');
+
+        // Force fixed min-height for debugging
+        li.style.minHeight = '180px';
+
+        li.innerHTML = `
+            <div class="p-4 flex-1 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <h3 class="text-base font-semibold text-gray-900 truncate" title="${escapeHtml(key)}">${escapeHtml(key)}</h3>
+                        <div class="flex gap-1 shrink-0">
+                            ${config.folder ? `<span class="badge bg-purple-50 text-purple-700 text-xs" title="文件夹: ${escapeHtml(config.folder)}">${escapeHtml(config.folder)}</span>` : ''}
+                            <span class="badge bg-gray-100 text-gray-700 text-xs">${escapeHtml(config.type || 'html')}</span>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 truncate mb-3" title="${escapeHtml(config.url || '')}">${escapeHtml(config.url || 'No URL')}</p>
+                    <div class="flex flex-wrap gap-1 mb-3">
+                        <span class="badge bg-blue-50 text-blue-700 text-xs">${config.maxItems || 20} 条</span>
+                        ${config.fullText ? '<span class="badge bg-orange-50 text-orange-700 text-xs">全文</span>' : ''}
+                        ${config.notifications && config.notifications.barkEnabled ? '<span class="badge bg-yellow-50 text-yellow-700 text-xs" title="Bark 通知已启用">Bark</span>' : ''}
+                        ${config.status && config.status.lastUpdate ?
+                `<span class="badge bg-green-50 text-green-700 text-xs" title="内容更新于: ${new Date(config.status.lastUpdate).toLocaleString()}">更新: ${typeof timeAgo === 'function' ? timeAgo(config.status.lastUpdate) : new Date(config.status.lastUpdate).toLocaleDateString()}</span>`
+                : ''}
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 mb-2 mt-auto">配置: ${config.updatedAt ? new Date(config.updatedAt).toLocaleDateString() : '未知'}</p>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 border-t border-gray-100 flex items-center justify-between rounded-b-lg">
+                <div class="flex gap-2">
+                    <a href="${rssLink}" target="_blank" class="text-orange-500 hover:text-orange-600 flex items-center gap-1" title="RSS">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 5c7.18 0 13 5.82 13 13M6 11a7 7 0 017 7m-6 0a1 1 0 11-2 0 1 1 0 012 0z"></path></svg>
+                        ${tokenBadge}
+                    </a>
+                    <a href="${atomLink}" target="_blank" class="text-blue-500 hover:text-blue-600" title="Atom">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </a>
+                    <a href="${jsonLink}" target="_blank" class="text-green-500 hover:text-green-600" title="JSON">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path></svg>
+                    </a>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick='editRoute("${escapeHtml(key)}")' class="text-xs text-blue-600 hover:text-blue-800 font-medium">编辑</button>
+                    <button onclick="deleteRoute('${escapeHtml(key)}')" class="text-xs text-red-600 hover:text-red-800 font-medium">删除</button>
+                </div>
+            </div>
+        `;
+
+        // Debug log for first item
+        if (index === 0) console.log(`[RSS Admin] Debug: Appended first item (${key})`);
+
+        listEl.appendChild(li);
+    });
+    console.log('[RSS Admin] Debug: renderList finished');
+}
+
+window.deleteRoute = async function (key) {
+    if (!confirm('确定删除 ' + key + ' 吗?')) return;
+    await authFetch(API_BASE + '?key=' + key, { method: 'DELETE' });
+    loadRoutes();
+};

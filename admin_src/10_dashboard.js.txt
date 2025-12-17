@@ -1,0 +1,51 @@
+// --- Stat Update ---
+window.updateStats = async function () {
+    try {
+        const total = (typeof totalRoutes !== 'undefined' && totalRoutes > 0) ? totalRoutes : Object.keys(cachedRoutes || {}).length;
+        const totalEl = document.getElementById('stat-total');
+        if (totalEl) totalEl.textContent = total;
+
+        // Active Domain Logic
+        if (window.domainConfig && window.domainConfig.groups) {
+            const activeLabel = document.getElementById('stat-active-domain');
+            const container = document.getElementById('stat-active-domain-container');
+            if (activeLabel && container) {
+                container.style.display = 'block';
+                activeLabel.textContent = window.domainConfig.activeRemark || 'Default';
+            }
+        }
+
+        // Recent Updates Logic (Content Updates)
+        if (Object.keys(cachedRoutes || {}).length > 0) {
+            const sorted = Object.entries(cachedRoutes).map(([k, v]) => {
+                // Use content update time if available
+                const t = (v.status && v.status.lastUpdate) ? v.status.lastUpdate : 0;
+                return { ...v, key: k, _effTime: t };
+            });
+
+            // Filter for items that have actually been updated
+            const withUpdates = sorted.filter(x => x._effTime > 0);
+
+            const recent = [...withUpdates].sort((a, b) => b._effTime - a._effTime).slice(0, 10);
+            const oldest = [...withUpdates].sort((a, b) => a._effTime - b._effTime).slice(0, 10);
+
+            const renderStatList = (opt, elId, color) => {
+                const el = document.getElementById(elId);
+                if (!el) return;
+                if (opt.length === 0) { el.innerHTML = '<p class="text-sm text-gray-400">暂无更新记录</p>'; return; }
+                el.innerHTML = opt.map(i => `
+                <div class="flex items-center justify-between text-sm border-b border-gray-100 pb-2 last:border-0 last:pb-0">
+                    <div class="flex items-center gap-2 truncate">
+                        <span class="w-2 h-2 rounded-full ${color}"></span>
+                        <span class="font-medium text-gray-700 truncate" title="${escapeHtml(i.key)}">${escapeHtml(i.key)}</span>
+                    </div>
+                    <span class="text-xs text-gray-500 whitespace-nowrap">${typeof timeAgo === 'function' ? timeAgo(i._effTime) : new Date(i._effTime).toLocaleString()}</span>
+                </div>
+                `).join('');
+            };
+
+            renderStatList(recent, 'stat-recent', 'bg-green-500');
+            renderStatList(oldest, 'stat-oldest', 'bg-orange-500');
+        }
+    } catch (e) { console.error(e); }
+}

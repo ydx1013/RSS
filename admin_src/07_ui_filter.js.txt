@@ -1,0 +1,52 @@
+function addFilterRow(data = {}) {
+    const container = document.getElementById('filterContainer');
+    if (!container) return;
+    const div = document.createElement('div');
+    div.className = 'flex gap-2 items-center bg-gray-50 p-2 rounded border border-gray-200';
+    div.innerHTML = `
+        <select class="filter-field block h-8 rounded border-gray-300 border px-2 text-xs bg-white w-24">
+            <option value="title">标题</option>
+            <option value="description">描述</option>
+            <option value="content">内容</option>
+            <option value="link">链接</option>
+            <option value="author">作者</option>
+        </select>
+        <select class="filter-type block h-8 rounded border-gray-300 border px-2 text-xs bg-white w-20">
+            <option value="regex">正则</option>
+            <option value="string">字符串</option>
+        </select>
+        <select class="filter-mode block h-8 rounded border-gray-300 border px-2 text-xs bg-white w-20">
+            <option value="exclude">排除</option>
+            <option value="include">保留</option>
+        </select>
+        <input type="text" class="filter-value block flex-1 h-8 rounded border-gray-300 border px-2 text-xs" placeholder="匹配内容..." value="">
+        <button type="button" onclick="this.parentElement.remove()" class="text-red-500 hover:text-red-700 px-2">×</button>
+    `;
+
+    // Set values
+    const fieldSel = div.querySelector('.filter-field');
+    const typeSel = div.querySelector('.filter-type');
+    const modeSel = div.querySelector('.filter-mode');
+    const valInput = div.querySelector('.filter-value');
+
+    if (data.field) fieldSel.value = data.field;
+    if (data.type) typeSel.value = data.type;
+    if (data.mode) modeSel.value = data.mode;
+    if (data.value) valInput.value = data.value;
+
+    container.appendChild(div);
+}
+
+function getFiltersFromUI() {
+    const filters = [];
+    document.querySelectorAll('#filterContainer > div').forEach(row => {
+        const field = row.querySelector('.filter-field').value;
+        const type = row.querySelector('.filter-type').value;
+        const mode = row.querySelector('.filter-mode').value;
+        const value = row.querySelector('.filter-value').value;
+        if (value) {
+            filters.push({ field, type, mode, value, active: true });
+        }
+    });
+    return filters;
+}

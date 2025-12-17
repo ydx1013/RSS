@@ -1,0 +1,493 @@
+// --- Domain Config Logic ---
+async function loadDomains() {
+    const input = document.getElementById('domainGroupsInput');
+    const barkInput = document.getElementById('barkUrl');
+    const puppeteerInput = document.getElementById('puppeteerUrl');
+    const activeSelect = document.getElementById('activeRemarkSelect');
+
+    input.value = '加载中...';
+    input.disabled = true;
+    if (barkInput) barkInput.disabled = true;
+    if (puppeteerInput) puppeteerInput.disabled = true;
+    if (activeSelect) activeSelect.disabled = true;
+
+    try {
+        const res = await authFetch('/api/domains');
+        const config = await res.json();
+
+        // Expose domain config globally for updateStats to use
+        window.domainConfig = config || {};
+
+        // Render textarea lines. If groupLabels exists, render as "label: a,b,c"
+        if (config.groups && Array.isArray(config.groups)) {
+            const labels = Array.isArray(config.groupLabels) ? config.groupLabels : [];
+            const lines = config.groups.map((g, idx) => {
+                const label = labels[idx];
+                const domains = Array.isArray(g) ? g.join(', ') : (g || '');
+                return label ? `${label}: ${domains}` : domains;
+            });
+            input.value = lines.join('\n');
+        } else {
+            input.value = '';
+        }
+
+        if (barkInput) {
+            barkInput.value = config.notifications?.barkUrl || '';
+        }
+        if (puppeteerInput) {
+            puppeteerInput.value = config.puppeteerUrl || '';
+        }
+
+        // Populate active remark select if labels exist
+        if (activeSelect) {
+            activeSelect.innerHTML = '';
+            const labels = Array.isArray(config.groupLabels) ? config.groupLabels : [];
+            if (labels.length > 0) {
+                labels.forEach(label => {
+                    const opt = document.createElement('option');
+                    opt.value = label;
+                    opt.textContent = label;
+                    activeSelect.appendChild(opt);
+                });
+                // choose saved activeRemark or first label
+                const toSelect = config.activeRemark && labels.includes(config.activeRemark) ? config.activeRemark : labels[0];
+                activeSelect.value = toSelect;
+                activeSelect.onchange = () => updateStats();
+                activeSelect.parentElement.style.display = '';
+            } else {
+                activeSelect.parentElement.style.display = 'none';
+            }
+        }
+
+        // Load per-route Bark list
+        try {
+            await loadBarkRouteList();
+        } catch (e) {
+            console.warn('Failed to load Bark route list:', e);
+        }
+    } catch (e) {
+        alert('加载域名配置失败: ' + e.message);
+        input.value = '';
+    } finally {
+        input.disabled = false;
+        if (barkInput) barkInput.disabled = false;
+        if (puppeteerInput) puppeteerInput.disabled = false;
+        if (activeSelect) activeSelect.disabled = false;
+    }
+}
+
+async function loadBarkRouteList() {
+    const container = document.getElementById('barkRouteList');
+    const statusEl = document.getElementById('barkRouteStatus');
+    if (!container) return;
+    container.innerHTML = '<div class="text-sm text-gray-500 p-2">加载中...</div>';
+    statusEl && (statusEl.textContent = '');
+    try {
+        const res = await authFetch(API_BASE);
+        const routes = await res.json();
+        // routes is an object mapping key->config
+        const keys = Object.keys(routes).sort();
+        if (keys.length === 0) {
+            container.innerHTML = '<div class="text-sm text-gray-500 p-2">暂无路由</div>';
+            return;
+        }
+
+        container.innerHTML = keys.map(key => {
+            // Default: if not explicitly set, treat as enabled (默认启用)
+            const raw = routes[key].notifications && Object.prototype.hasOwnProperty.call(routes[key].notifications, 'barkEnabled') ? routes[key].notifications.barkEnabled : undefined;
+            const enabled = (typeof raw === 'boolean') ? raw : true;
+            // Mark visually if explicitly set (optional)
+            return `<label class="flex items-center gap-2 p-1 text-sm"><input type="checkbox" data-key="${key}" ${enabled ? 'checked' : ''}> <span class="truncate">${key} — ${routes[key].url || ''}${raw === undefined ? '' : (raw ? ' (已显式启用)' : ' (已显式禁用)')}</span></label>`;
+        }).join('');
+    } catch (e) {
+        container.innerHTML = '<div class="text-sm text-red-500 p-2">加载失败: ' + e.message + '</div>';
+        statusEl && (statusEl.textContent = '加载失败');
+    }
+}
+
+async function saveBarkSelections() {
+    const container = document.getElementById('barkRouteList');
+    const statusEl = document.getElementById('barkRouteStatus');
+    if (!container) return;
+    const checks = Array.from(container.querySelectorAll('input[type=checkbox]'));
+    const updates = {};
+    // Fetch latest routes to merge
+    let routes = {};
+    try {
+        const res = await authFetch(API_BASE);
+        routes = await res.json();
+    } catch (e) {
+        statusEl && (statusEl.textContent = '获取最新路由失败: ' + e.message);
+        return;
+    }
+
+    checks.forEach(cb => {
+        const key = cb.dataset.key;
+        if (!routes[key]) return;
+        const cfg = routes[key];
+        const rawPrev = cfg.notifications && Object.prototype.hasOwnProperty.call(cfg.notifications, 'barkEnabled') ? cfg.notifications.barkEnabled : undefined;
+        const effectivePrev = (typeof rawPrev === 'boolean') ? rawPrev : true; // default enabled if not set
+        const now = !!cb.checked;
+        if (effectivePrev !== now) {
+            // Only write when effective previous differs from now
+            const newCfg = { ...cfg, notifications: { ...(cfg.notifications || {}), barkEnabled: now } };
+            updates[key] = newCfg;
+        }
+    });
+
+    if (Object.keys(updates).length === 0) {
+        statusEl && (statusEl.textContent = '未发现更改');
+        setTimeout(() => statusEl && (statusEl.textContent = ''), 3000);
+        return;
+    }
+
+    statusEl && (statusEl.textContent = '正在保存...');
+    try {
+        const res = await authFetch(API_BASE, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updates)
+        });
+        if (res.ok) {
+            statusEl && (statusEl.textContent = '保存成功');
+            // Refresh list
+            await loadBarkRouteList();
+        } else {
+            const txt = await res.text();
+            statusEl && (statusEl.textContent = '保存失败: ' + txt);
+        }
+    } catch (e) {
+        statusEl && (statusEl.textContent = '保存失败: ' + e.message);
+    }
+    setTimeout(() => statusEl && (statusEl.textContent = ''), 4000);
+}
+
+function selectAllBark() {
+    const container = document.getElementById('barkRouteList');
+    if (!container) return;
+    Array.from(container.querySelectorAll('input[type=checkbox]')).forEach(cb => cb.checked = true);
+}
+
+function deselectAllBark() {
+    const container = document.getElementById('barkRouteList');
+    if (!container) return;
+    Array.from(container.querySelectorAll('input[type=checkbox]')).forEach(cb => cb.checked = false);
+}
+
+async function saveDomains() {
+    const input = document.getElementById('domainGroupsInput');
+    const barkInput = document.getElementById('barkUrl');
+    const puppeteerInput = document.getElementById('puppeteerUrl');
+    const activeSelect = document.getElementById('activeRemarkSelect');
+
+    // Fetch existing config to merge
+    let existing = {};
+    try {
+        const r = await authFetch('/api/domains');
+        if (r.ok) existing = await r.json();
+    } catch (e) {
+        // ignore, we'll submit what we have
+    }
+
+    const groups = [];
+    const groupLabels = [];
+
+    if (input) {
+        const text = input.value || '';
+        text.split('\n').forEach(line => {
+            const trimmed = line.trim();
+            if (!trimmed) return;
+            const m = trimmed.match(/^([^:：]+)[:：]\s*(.*)$/);
+            if (m) {
+                const label = m[1].trim();
+                const rest = m[2].trim();
+                const items = rest.split(',').map(s => s.trim()).filter(s => s);
+                if (items.length > 0) { groups.push(items); groupLabels.push(label); }
+            } else {
+                const items = trimmed.split(',').map(s => s.trim()).filter(s => s);
+                if (items.length > 0) { groups.push(items); groupLabels.push(''); }
+            }
+        });
+    } else if (existing.groups) {
+        // keep existing groups if input not present
+        existing.groups.forEach(g => groups.push(Array.isArray(g) ? g.slice() : []));
+        if (existing.groupLabels) existing.groupLabels.forEach(l => groupLabels.push(l));
+    }
+
+    const rawBark = (barkInput ? barkInput.value.trim() : '') || (existing.notifications?.barkUrl || '');
+    // Access Token Removed (Legacy) - using Token Management System instead
+    const rawPuppeteer = (puppeteerInput ? puppeteerInput.value.trim() : '') || existing.puppeteerUrl || '';
+
+    const notifications = { barkUrl: rawBark ? normalizeUrl(rawBark) : '' };
+
+    const payload = {
+        groups: groups.length ? groups : (existing.groups || []),
+        notifications,
+        puppeteerUrl: rawPuppeteer ? normalizeUrl(rawPuppeteer) : (existing.puppeteerUrl || '')
+    };
+    if (groupLabels.length > 0) payload.groupLabels = groupLabels;
+    if (activeSelect && activeSelect.value) payload.activeRemark = activeSelect.value;
+
+    try {
+        const res = await authFetch('/api/domains', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            alert('保存成功');
+            try { loadSettings(); } catch (e) { /* ignore */ }
+        } else {
+            throw new Error(await res.text());
+        }
+    } catch (e) {
+        alert('保存失败: ' + e.message);
+    }
+}
+
+async function testBark() {
+    const barkInput = document.getElementById('barkUrl');
+    const statusEl = document.getElementById('testBarkStatus');
+    if (!barkInput) return;
+    const barkUrl = barkInput.value.trim();
+    statusEl.textContent = '正在发送测试通知...';
+    try {
+        const res = await authFetch('/api/test-bark', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ barkUrl })
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+            statusEl.textContent = '测试通知发送成功 (请检查你的设备)';
+        } else {
+            statusEl.textContent = '发送失败: ' + (data.error || await res.text());
+        }
+    } catch (e) {
+        statusEl.textContent = '请求失败: ' + e.message;
+    }
+    setTimeout(() => { statusEl.textContent = '（点击发送一条测试通知到配置的 Bark URL）'; }, 5000);
+}
+
+async function saveAdminSettings() {
+    const transProvider = document.getElementById('transProvider').value;
+    const transModel = document.getElementById('transModel').value;
+    const transEndpoint = document.getElementById('transEndpoint').value;
+    const transKey = document.getElementById('transKey').value;
+
+    const payload = {
+        translation: {
+            provider: transProvider,
+            model: transModel,
+            apiUrl: transEndpoint,
+            apiKey: transKey
+        }
+    };
+
+    try {
+        const res = await authFetch('/api/admin/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            alert('保存成功');
+        } else {
+            alert('保存失败: ' + await res.text());
+        }
+    } catch (e) {
+        alert('保存失败: ' + e.message);
+    }
+}
+
+// Layout control helpers
+function setFolderLayout() {
+    const per = document.getElementById('foldersPerRowInput');
+    const asp = document.getElementById('foldersAspectSelect');
+    if (!per || !asp) return;
+    const v = parseInt(per.value, 10);
+    const perRow = (isNaN(v) || v < 1) ? 4 : v;
+    const cfg = { perRow: perRow, ratio: asp.value || '3 / 2' };
+    localStorage.setItem('layout.folders', JSON.stringify(cfg));
+    try { renderFolders(); } catch (e) { }
+}
+
+function setRouteLayout() {
+    const per = document.getElementById('routesPerRowInput');
+    const asp = document.getElementById('routesAspectSelect');
+    if (!per || !asp) return;
+    const v = parseInt(per.value, 10);
+    const perRow = (isNaN(v) || v < 1) ? 3 : v;
+    const cfg = { perRow: perRow, ratio: asp.value || '4 / 3' };
+    localStorage.setItem('layout.routes', JSON.stringify(cfg));
+    try { renderList(); } catch (e) { }
+}
+
+function initLayoutControls() {
+    // Folders
+    try {
+        const s = JSON.parse(localStorage.getItem('layout.folders') || '{}');
+        const per = document.getElementById('foldersPerRowInput');
+        const asp = document.getElementById('foldersAspectSelect');
+        if (per && s.perRow) per.value = String(s.perRow);
+        if (asp && s.ratio) asp.value = s.ratio;
+    } catch (e) { }
+    // Routes
+    try {
+        const s2 = JSON.parse(localStorage.getItem('layout.routes') || '{}');
+        const per2 = document.getElementById('routesPerRowInput');
+        const asp2 = document.getElementById('routesAspectSelect');
+        if (per2 && s2.perRow) per2.value = String(s2.perRow);
+        if (asp2 && s2.ratio) asp2.value = s2.ratio;
+    } catch (e) { }
+}
+
+// Load settings (Bark URL + route list) into Settings page
+async function loadSettings() {
+    // Load domain-level settings (bark url etc)
+    try {
+        const res = await authFetch('/api/domains');
+        if (res.ok) {
+            const cfg = await res.json();
+            const barkInput = document.getElementById('barkUrl');
+
+            if (barkInput) barkInput.value = cfg.notifications?.barkUrl || '';
+        }
+    } catch (e) {
+        console.warn('loadSettings: failed to load domains config', e);
+    }
+
+    // Load Admin Settings (Translation, etc)
+    try {
+        const res = await authFetch('/api/admin/settings');
+        if (res.ok) {
+            const settings = await res.json();
+            const transProvider = document.getElementById('transProvider');
+            const transModel = document.getElementById('transModel');
+            const transEndpoint = document.getElementById('transEndpoint');
+            const transKey = document.getElementById('transKey');
+
+            // Support new nested structure (priority) and legacy flat structure
+            const t = settings.translation || {};
+            
+            if (transProvider) transProvider.value = t.provider || settings.transProvider || 'openai';
+            if (transModel) transModel.value = t.model || settings.transModel || '';
+            // transEndpoint maps to apiUrl
+            if (transEndpoint) transEndpoint.value = t.apiUrl || settings.transEndpoint || '';
+            // transKey maps to apiKey
+            if (transKey) transKey.value = t.apiKey || settings.transKey || '';
+            
+            // Update UI state
+            toggleTransFields();
+        }
+    } catch (e) {
+        console.warn('loadSettings: failed to load admin settings', e);
+    }
+
+    // initialize layout control values (inputs)
+    try { initLayoutControls(); } catch (e) { }
+
+    // Populate bark route list
+    try { await loadBarkRouteList(); } catch (e) { console.warn('loadBarkRouteList failed', e); }
+}
+
+window.testPuppeteerConfig = async function () {
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = 'Testing...';
+
+    try {
+        // Test with a reliable site, e.g. example.com
+        const checkUrl = 'https://example.com';
+        const encVal = encodeURIComponent('utf-8');
+        const testApiUrl = PROXY_API + '?url=' + encodeURIComponent(checkUrl) + '&encoding=' + encVal + '&use_puppeteer=true&_t=' + Date.now();
+
+        alert('⏳ 正在使用已保存的配置连接 Puppeteer...\n请等待几秒钟。');
+
+        const res = await authFetch(testApiUrl);
+        if (res.ok) {
+            const text = await res.text();
+            if (text.includes('Example Domain')) {
+                // Check if we are using legacy URL
+                const currentInput = document.getElementById('puppeteerUrl').value;
+                if (currentInput.includes('chrome.browserless.io')) {
+                    if (confirm('✅ 连接成功 (已自动修正)！\n\n检测到您使用的是旧 Browserless 域名，但系统已自动尝试并通过新域名连接成功。\n\n是否立即将配置更新为新域名？')) {
+                        const newUrl = currentInput.replace('chrome.browserless.io', 'production-lon.browserless.io');
+                        document.getElementById('puppeteerUrl').value = newUrl;
+                        // Ideally trigger save, but user can click save.
+                        alert('已更新输入框。请点击顶部的 "保存配置" 按钮以永久生效。');
+                    }
+                } else {
+                    alert('✅ Puppeteer 连接成功！\n配置有效。');
+                }
+            } else {
+                alert('⚠️ 连接成功但内容不匹配。\n可能 Puppeteer 返回了错误页面。\n请检查预览结果。');
+            }
+        } else {
+            const errHtml = await res.text();
+            // Extract error from HTML if possible
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(errHtml, 'text/html');
+            const errPre = doc.querySelector('pre');
+            const msg = errPre ? errPre.textContent : 'HTTP ' + res.status;
+            alert('❌ 连接失败: ' + msg);
+        }
+    } catch (e) {
+        alert('❌ 错误: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+};
+
+// Helper to toggle translation fields visibility
+function toggleTransFields() {
+    const provider = document.getElementById('transProvider').value;
+    const fields = document.getElementById('transApiFields');
+    if (fields) {
+        if (provider === 'google') {
+            fields.style.display = 'none';
+        } else {
+            fields.style.display = '';
+        }
+    }
+}
+window.toggleTransFields = toggleTransFields;
+
+window.testTranslation = async function() {
+    const provider = document.getElementById('transProvider').value;
+    const model = document.getElementById('transModel').value;
+    const endpoint = document.getElementById('transEndpoint').value;
+    const key = document.getElementById('transKey').value;
+    const statusSpan = document.getElementById('testTransStatus');
+
+    if (!statusSpan) return;
+    statusSpan.textContent = 'Testing...';
+    statusSpan.className = 'text-sm text-blue-600 self-center';
+
+    try {
+        const res = await authFetch('/api/admin/test-translation', {
+            method: 'POST',
+            body: JSON.stringify({
+                provider,
+                model,
+                apiUrl: endpoint, // match backend expectation
+                apiKey: key
+            })
+        });
+
+        const data = await res.json();
+        if (data.ok) {
+            statusSpan.textContent = `✓ Success: ${data.result}`;
+            statusSpan.className = 'text-sm text-green-600 self-center';
+        } else {
+            statusSpan.textContent = `✗ Failed: ${data.error}`;
+            statusSpan.className = 'text-sm text-red-600 self-center';
+        }
+    } catch (e) {
+        statusSpan.textContent = `✗ Error: ${e.message}`;
+        statusSpan.className = 'text-sm text-red-600 self-center';
+    }
+};

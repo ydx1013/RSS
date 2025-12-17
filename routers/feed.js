@@ -2,6 +2,9 @@ import * as cheerio from 'cheerio';
 import { itemsToRss } from '../rss.js';
 import { fetchWithHeaders, fetchWithRetry } from '../utils/fetcher.js';
 import { xmlToJson, getVal, decodeText } from '../utils/helpers.js';
+import { fixLazyImages, fixRelativeUrls, unescapeHtml } from '../utils/html.js';
+import { applyFilters } from '../utils/filter.js';
+import { translateItems } from '../utils/translator.js';
 
 export default async function (params, config) {
     const { format = 'rss' } = params;
@@ -100,7 +103,7 @@ export default async function (params, config) {
             });
 
             channel = {
-                title: channelTitle || 'Custom XML Feed',
+                title: channelTitle || config.key || 'Custom XML Feed',
                 link: url,
                 description: channelDesc || config.key || url,
             };
@@ -140,10 +143,18 @@ export default async function (params, config) {
                     let link = $el.find('link[rel="alternate"]').attr('href');
                     if (!link) link = $el.find('link').attr('href'); // Fallback
 
+                    // Use .html() to preserve full content with HTML tags
+                    let desc = $el.find('content').html() || $el.find('summary').html();
+                    if (desc) {
+                        desc = desc.replace(/^\s*<!\[CDATA\[/, '').replace(/\]\]>\s*$/, '');
+                        // Unescape to fix double escaping if source used entities
+                        desc = unescapeHtml(desc);
+                    }
+
                     items.push({
                         title: $el.find('title').text(),
                         link: link,
-                        description: $el.find('content').text() || $el.find('summary').text(),
+                        description: desc || '',
                         pubDate: $el.find('published').text() || $el.find('updated').text(),
                         guid: $el.find('id').text()
                     });
@@ -157,10 +168,23 @@ export default async function (params, config) {
                 $('item').each((i, el) => {
                     if (i >= maxItems) return false;
                     const $el = $(el);
+
+                    // Use .html() to preserve full content with HTML tags
+                    // .text() strips all HTML which breaks formatting
+                    let desc = $el.find('content\\:encoded').html() || $el.find('description').html();
+
+                    // Handle CDATA: if wrapped in CDATA, cheerio may return it as-is
+                    // Strip CDATA wrapper if present
+                    if (desc) {
+                        desc = desc.replace(/^\s*<!\[CDATA\[/, '').replace(/\]\]>\s*$/, '');
+                        // Unescape to fix double escaping if source used entities
+                        desc = unescapeHtml(desc);
+                    }
+
                     items.push({
                         title: $el.find('title').text(),
                         link: $el.find('link').text(),
-                        description: $el.find('description').text() || $el.find('content\\:encoded').text(),
+                        description: desc || '',
                         pubDate: $el.find('pubDate').text() || $el.find('dc\\:date').text(),
                         guid: $el.find('guid').text()
                     });
@@ -221,6 +245,10 @@ export default async function (params, config) {
                     if (fullTextSelector) {
                         const contentEl = $article(fullTextSelector);
                         if (contentEl.length > 0) {
+                            // Fix lazy images and relative URLs
+                            fixLazyImages($article, contentEl);
+                            fixRelativeUrls($article, fetchUrl);
+
                             // Handle multiple matches
                             if (contentEl.length > 1) {
                                 fullContent = contentEl.map((i, el) => $article(el).html()).get().join('<br/>');
@@ -253,6 +281,19 @@ export default async function (params, config) {
             }
 
             items = fullTextItems;
+        }
+
+        // --- Filtering ---
+        const filters = config.filters || (config.filter?.enabled ? config.filter.rules : null);
+        if (Array.isArray(filters) && filters.length > 0) {
+            const originalCount = items.length;
+            items = applyFilters(items, filters);
+            log(`[Filter] Applied rules. ${originalCount} -> ${items.length} items.`);
+        }
+
+        // --- Translation ---
+        if (config.translation && config.translation.enabled) {
+            items = await translateItems(items, config, config.globalSettings, log);
         }
 
 

@@ -1,22 +1,46 @@
+import * as cheerio from 'cheerio';
 import { checkAuth } from "../utils/auth.js";
 import { fetchWithHeaders, fetchWithRetry } from "../utils/fetcher.js";
 import { decodeText } from "../utils/helpers.js";
+import { fixLazyImages, cleanHtml, rewriteUrlsForProxy } from "../utils/html.js";
 
 export async function handleProxyRequest(path, request, env) {
     const url = new URL(request.url);
 
     // --- Visual Proxy ---
+
     if (path === '/api/visual-proxy') {
         const targetUrl = url.searchParams.get('url');
-        const enableJs = url.searchParams.get('enable_js') === 'true';
+        const usePuppeteer = url.searchParams.get('use_puppeteer') === 'true';
+        const waitSelector = url.searchParams.get('wait');
+
         if (!targetUrl) return new Response("Missing url", { status: 400 });
 
         try {
             // Use fetchWithRetry to leverage domain mirrors when available
             const domainConfig = env.RSS_KV ? await env.RSS_KV.get('domain_config', { type: 'json' }) : null;
-            const targetResp = await fetchWithRetry(targetUrl, {
-                redirect: 'follow'
-            }, domainConfig?.groups || []);
+            const fetchOptions = {
+                redirect: 'follow',
+                usePuppeteer: usePuppeteer,
+                puppeteerProxyUrl: domainConfig?.puppeteerUrl,
+                puppeteerWaitSelector: waitSelector
+            };
+
+            // Auto-migrate legacy Browserless URLs if detected
+            if (fetchOptions.puppeteerProxyUrl && fetchOptions.puppeteerProxyUrl.includes('chrome.browserless.io')) {
+                const oldUrl = fetchOptions.puppeteerProxyUrl;
+                // Prefer LON (London) as a safe default, or SFO.
+                fetchOptions.puppeteerProxyUrl = fetchOptions.puppeteerProxyUrl.replace('chrome.browserless.io', 'production-lon.browserless.io');
+                console.warn(`[Visual Proxy] Auto-migrated legacy URL: ${oldUrl} -> ${fetchOptions.puppeteerProxyUrl}`);
+            }
+
+            // --- Diagnostic Logging ---
+            console.log(`[Visual Proxy] usePuppeteer: ${usePuppeteer}`);
+            console.log(`[Visual Proxy] puppeteerProxyUrl: ${fetchOptions.puppeteerProxyUrl}`);
+            console.log(`[Visual Proxy] waitSelector: ${waitSelector}`);
+            // --- End Diagnostics ---
+
+            const targetResp = await fetchWithRetry(targetUrl, fetchOptions, domainConfig?.groups || []);
 
             // 1. Handle Non-HTML Resources (Images, CSS, Fonts, etc.)
             const contentType = targetResp.headers.get('Content-Type') || '';
@@ -34,338 +58,258 @@ export async function handleProxyRequest(path, request, env) {
             const requestedEncoding = url.searchParams.get('encoding') || undefined;
             // Use decodeText to honor Content-Type header / meta charset / sniffing or forced encoding
             let html = await decodeText(targetResp, requestedEncoding);
-            // Normalize any existing charset meta tags in the HTML to UTF-8
+
+            // Robust HTML Processing with Cheerio
             try {
-                // Replace <meta charset=...> and <meta http-equiv="Content-Type" ...> occurrences
-                html = html.replace(/<meta[^>]*charset=["']?[^"'\s>]+["']?[^>]*>/ig, '<meta charset="utf-8">');
-                html = html.replace(/<meta[^>]*http-equiv=["']?content-type["']?[^>]*>/ig, '<meta charset="utf-8">');
-            } catch (e) {
-                // ignore replacement errors
-            }
-            const proxyBase = new URL(request.url).origin + '/api/visual-proxy?url=';
-            const snifferScript = enableJs ? `
-            <script>
-            (function() {
-                try {
-                    const SITE_BASE = ${JSON.stringify(targetUrl)};
-                    const PROXY_BASE = "/api/proxy?url=";
+                const $ = cheerio.load(html);
 
-                    const resolve = (u) => {
-                         try { return new URL(u, SITE_BASE).href; } catch(e) { return u; }
-                    };
+                // 1. Clean unwanted elements (scripts, ads, etc.) - Safer and more thorough than regex
+                cleanHtml($);
 
-                    const send = (url, method, type) => {
-                        window.parent.postMessage({
-                            type: 'ajax-sniff', 
-                            payload: { url, method, type, timestamp: Date.now() }
-                        }, '*');
-                    };
+                // 2. Fix lazy images (so they show up in preview)
+                fixLazyImages($);
 
-                    const originalFetch = window.fetch;
-                    window.fetch = function(input, init) {
-                        let url, method;
-                        if (input instanceof Request) {
-                            url = input.url;
-                            method = input.method;
-                        } else {
-                            url = input;
-                            method = (init && init.method) ? init.method : 'GET';
-                        }
-                        
-                        const fullUrl = resolve(url);
-                        send(fullUrl, method, 'fetch');
-                        
-                        if (fullUrl.includes('/api/proxy') || fullUrl.startsWith('data:')) {
-                            return originalFetch.apply(this, arguments);
-                        }
-
-                        const proxiedUrl = PROXY_BASE + encodeURIComponent(fullUrl);
-                        
-                        if (input instanceof Request) {
-                            return originalFetch(new Request(proxiedUrl, input), init);
-                        }
-                        return originalFetch(proxiedUrl, init);
-                    };
-
-                    const originalOpen = XMLHttpRequest.prototype.open;
-                    XMLHttpRequest.prototype.open = function(method, url) {
-                        const fullUrl = resolve(url);
-                        send(fullUrl, method, 'xhr');
-                        
-                        if (fullUrl.includes('/api/proxy') || fullUrl.startsWith('data:')) {
-                            return originalOpen.apply(this, arguments);
-                        }
-
-                        const proxiedUrl = PROXY_BASE + encodeURIComponent(fullUrl);
-                        return originalOpen.call(this, method, proxiedUrl);
-                    };
-
-                    // 3. Dynamic Script Sniffing (JSONP / Dynamic Import)
-                    try {
-                        const scriptDesc = Object.getOwnPropertyDescriptor(HTMLScriptElement.prototype, 'src');
-                        if (scriptDesc && scriptDesc.set) {
-                            Object.defineProperty(HTMLScriptElement.prototype, 'src', {
-                                set: function(val) {
-                                    const fullUrl = resolve(val);
-                                    send(fullUrl, 'GET', 'script');
-                                    
-                                    if (!fullUrl.includes('/api/proxy') && !fullUrl.startsWith('data:')) {
-                                        val = PROXY_BASE + encodeURIComponent(fullUrl);
-                                    }
-                                    scriptDesc.set.call(this, val);
-                                },
-                                get: function() {
-                                    return scriptDesc.get.call(this);
-                                }
-                            });
-                        }
-                    } catch(e) { console.warn('Script hook failed', e); }
-
-                    console.log('AJAX Sniffer & CORS Bypass Loaded (Advanced)');
-                } catch(e) { console.error('Sniffer Error:', e); }
-            })();
-            </script>` : '';
-
-            // Only remove scripts if JS is NOT enabled
-            if (!enableJs) {
-                html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
-                html = html.replace(/\bon\w+="[^"]*"/gi, ""); // Remove inline event handlers
-            }
-
-            // Rewrite URLs (src, href) to go through proxy
-            // This ensures CSS, Images, and Links work without CORS issues
-            html = html.replace(/\b(src|href)\s*=\s*(["'])(.*?)\2/gi, (match, attr, quote, val) => {
-                if (val.startsWith('data:') || val.startsWith('#') || val.startsWith('javascript:')) return match;
-                try {
-                    const absolute = new URL(val, targetUrl).href;
-                    return `${attr}=${quote}${proxyBase}${encodeURIComponent(absolute)}${requestedEncoding ? '&encoding=' + encodeURIComponent(requestedEncoding) : ''}${quote}`;
-                } catch (e) {
-                    return match;
+                // 3. Force UTF-8 meta
+                $('meta[charset]').attr('charset', 'utf-8');
+                $('meta[http-equiv="Content-Type"]').remove(); // Remove old content-type meta to avoid conflicts
+                if ($('head').length) {
+                    $('head').prepend('<meta charset="utf-8">');
                 }
-            });
 
-            // Inject Helper Script & Styles
-            const helperScript = `
-            <style>
-                .rss-worker-hover { outline: 2px dashed #007bff !important; cursor: crosshair !important; z-index: 99999; position: relative; }
-                .rss-worker-selected { outline: 2px solid red !important; z-index: 99999; position: relative; }
-                .rss-worker-selected::after { content: '已选'; position: absolute; top: 0; left: 0; background: red; color: white; font-size: 10px; padding: 2px; }
-            </style>
-            <script>
-            (function() {
-                let mode = 'none'; // 'item', 'title', 'link', ...
-                let currentItemSelector = ''; // stored from parent
-                let selection = {
-                    original: null, // the element actually clicked
-                    current: null,  // the element currently selected (possibly ancestor)
-                    depth: 0        // distance from original
-                };
+                // 4. Rewrite URLs to route through proxy
+                const proxyBase = new URL(request.url).origin + '/api/visual-proxy?url=';
+                rewriteUrlsForProxy($, targetUrl, proxyBase, requestedEncoding);
 
-                // Init styles
-                const style = document.createElement('style');
-                style.innerHTML = \`
-                    .rss-worker-hover { outline: 2px dashed #007bff !important; cursor: crosshair !important; z-index: 999999; }
-                    .rss-worker-selected { outline: 3px solid #f97316 !important; z-index: 999999; position: relative; box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.5) !important; }
-                    .rss-worker-selected::after { 
-                        content: '已选中'; position: absolute; top: -20px; left: 0; 
-                        background: #f97316; color: white; font-size: 10px; padding: 1px 4px; 
-                        border-radius: 2px;
-                        pointer-events: none;
-                        white-space: nowrap;
-                        z-index: 1000000;
-                    }
-                \`;
-                document.head.appendChild(style);
-
-                window.addEventListener('message', (e) => {
-                    const { type } = e.data;
-                    if (type === 'setMode') {
-                        mode = e.data.mode;
-                        currentItemSelector = e.data.itemSelector || '';
-                        clearHighlights();
-                        selection = { original: null, current: null, depth: 0 };
-                    } 
-                    else if (type === 'setDepth') {
-                        if (selection.original) {
-                            changeDepth(e.data.depth);
+                // 5. Remove Inline Events (onX attributes) - Security
+                $('*').each((_, el) => {
+                    const attribs = el.attribs;
+                    for (const name in attribs) {
+                        if (name.startsWith('on')) {
+                            $(el).removeAttr(name);
                         }
                     }
                 });
 
-                document.addEventListener('mouseover', (e) => {
-                    if (mode === 'none') return;
-                    e.stopPropagation();
-                    e.target.classList.add('rss-worker-hover');
-                }, true);
+                html = $.html();
+            } catch (e) {
+                console.error('[Visual Proxy] Cheerio processing failed:', e);
+                // Fallback: If Cheerio fails, return original HTML (with basic regex cleaning as worst-case fallback)
+                // But Cheerio rarely fails on full docs.
+                html = html.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, "");
+            }
 
-                document.addEventListener('mouseout', (e) => {
-                    e.target.classList.remove('rss-worker-hover');
-                }, true);
-
-                document.addEventListener('click', (e) => {
-                    if (mode === 'none') return;
-                    e.preventDefault();
-                    e.stopPropagation();
-                    
-                    // New Selection
-                    selection.original = e.target;
-                    selection.depth = 0;
-                    updateSelection(e.target);
-                }, true);
-
-                function clearHighlights() {
-                    document.querySelectorAll('.rss-worker-selected').forEach(el => el.classList.remove('rss-worker-selected'));
-                }
-
-                function changeDepth(newDepth) {
-                    if (!selection.original) return;
-                    
-                    let target = selection.original;
-                    // Walk up newly requested depth
-                    for (let i = 0; i < newDepth; i++) {
-                        if (target.parentElement && target.parentElement !== document.body && target.parentElement !== document.documentElement) {
-                            target = target.parentElement;
-                        }
-                    }
-                    
-                    selection.depth = newDepth;
-                    updateSelection(target);
-                }
-
-                function updateSelection(el) {
-                    selection.current = el;
-                    clearHighlights();
-                    el.classList.add('rss-worker-selected');
-                    
-                    // Generate Selector based on user's manual choice
-                    const result = generateSelector(el, mode);
-                    
-                    window.parent.postMessage({ 
-                        type: 'selected', 
-                        mode: mode, 
-                        selector: result.selector, 
-                        depth: selection.depth
-                    }, '*');
-                    
-                    // Optional: Highlight other matches if in Item mode to show what else matches
-                    if (mode === 'item' && result.selector) {
-                        try {
-                            const others = document.querySelectorAll(result.selector);
-                            others.forEach(o => {
-                                if (o !== el) o.classList.add('rss-worker-selected'); 
-                            });
-                        } catch(e) {}
-                    }
-                }
-
-                // --- Core Selector Logic ---
-                function generateSelector(el, currentMode) {
-                    // 1. ITEM MODE: We want a generic selector that matches this element AND its siblings (list items)
-                    if (currentMode === 'item') {
-                        return generateItemSelector(el);
-                    } 
-                    // 2. FIELD MODE: We want a relative selector from the closest Item to this element
-                    else {
-                        if (!currentItemSelector) {
-                            // Fallback: just return global selector if no item selector yet
-                            return { selector: generateGlobalSelector(el) };
-                        }
-                        
-                        // Find closest item container
-                        let itemContainer = null;
-                        try {
-                            // Try to match the configured item selector
-                            const items = document.querySelectorAll(currentItemSelector);
-                            for (let item of items) {
-                                if (item.contains(el)) {
-                                    itemContainer = item;
-                                    break;
-                                }
-                            }
-                        } catch(e) {}
-                        
-                        if (!itemContainer) {
-                            // If not inside an item, fallback to global or warn
-                            // For now, just global
-                            return { selector: generateGlobalSelector(el) };
-                        }
-                        
-                        // Generate relative path from itemContainer to el
-                        return generateRelativeSelector(itemContainer, el);
-                    }
-                }
-
-                function generateItemSelector(el) {
-                    const tag = el.tagName.toLowerCase();
-                    const classes = Array.from(el.classList).filter(c => !c.startsWith('rss-worker-'));
-                    
-                    // Strategy 1: Tag + Class
-                    if (classes.length > 0) {
-                        if (el.parentElement) {
-                            const siblings = Array.from(el.parentElement.children);
-                            for (let cls of classes) {
-                                const count = siblings.filter(s => s.classList.contains(cls)).length;
-                                if (count > 1) {
-                                    return { selector: \`.\${cls}\` }; 
-                                }
-                            }
-                        }
-                        return { selector: \`\${tag}.\${classes[0]}\` };
-                    }
-                    
-                    // Strategy 2: Just Tag 
-                    return { selector: tag };
-                }
+            // Inject Visual Selector Helper Script (Server-Side Injection)
+            // Advanced Version: Includes Smart List Detection
+            const selectorHelperScript = `
+            <script>
+            (function() {
+                // Wait for DOM
+                window.addEventListener('DOMContentLoaded', initSelector);
+                window.addEventListener('load', initSelector);
                 
-                function generateGlobalSelector(el) {
-                    const tag = el.tagName.toLowerCase();
-                    const classes = Array.from(el.classList).filter(c => !c.startsWith('rss-worker-'));
-                    if (classes.length > 0) return \`\${tag}.\${classes[0]}\`;
-                    if (el.id) return \`#\${el.id}\`;
-                    return tag;
-                }
+                let initialized = false;
+                function initSelector() {
+                    if (initialized) return;
+                    initialized = true;
+                    console.log('[Proxy] Smart Visual Selector Loaded');
 
-                function generateRelativeSelector(root, target) {
-                    if (root === target) return { selector: '.' };
-                    
-                    let curr = target;
-                    const path = [];
-                    
-                    while (curr && curr !== root) {
-                        const tag = curr.tagName.toLowerCase();
-                        const classes = Array.from(curr.classList).filter(c => !c.startsWith('rss-worker-'));
-                        
-                        if (classes.length > 0) {
-                            path.unshift(\`.\${classes[0]}\`);
-                        } else {
-                            path.unshift(tag);
+                    // Styles for highlighting
+                    const style = document.createElement('style');
+                    style.textContent = \`
+                        .rss-worker-hover { 
+                            outline: 3px dashed #3b82f6 !important; 
+                            outline-offset: -3px;
+                            background-color: rgba(59, 130, 246, 0.1) !important;
+                            cursor: crosshair !important; 
+                            z-index: 999999; 
                         }
-                        curr = curr.parentElement;
+                        .rss-worker-selected { 
+                            outline: 3px solid #ef4444 !important; 
+                            background-color: rgba(239, 68, 68, 0.2) !important;
+                            z-index: 999999; 
+                        }
+                        #rss-worker-overlay {
+                            position: fixed; top: 10px; right: 10px; z-index: 9999999;
+                            background: #333; color: white; padding: 5px 10px;
+                            border-radius: 4px; font-size: 12px; font-family: sans-serif;
+                            pointer-events: none; opacity: 0.8; display: none;
+                        }
+                    \`;
+                    document.head.appendChild(style);
+
+                    const overlayInfo = document.createElement('div');
+                    overlayInfo.id = 'rss-worker-overlay';
+                    document.body.appendChild(overlayInfo);
+
+                    let currentMode = 'item'; // Default
+
+                    window.addEventListener('message', (e) => {
+                        if (e.data && e.data.type === 'setMode') {
+                            currentMode = e.data.mode;
+                            console.log('[Proxy] Mode set to:', currentMode);
+                            showToast('模式切换: ' + (currentMode === 'item' ? '选择列表项 (自动识别)' : '选择 ' + currentMode));
+                        }
+                    });
+
+                    function showToast(text) {
+                        overlayInfo.textContent = text;
+                        overlayInfo.style.display = 'block';
+                        setTimeout(() => overlayInfo.style.display = 'none', 2000);
                     }
+
+                    // --- Smart Selector Logic ---
+
+                    function getSimpleClassSelector(el) {
+                         if (!el) return '';
+                         const cls = Array.from(el.classList)
+                            .filter(c => !c.startsWith('rss-worker-') && !c.includes('active') && !c.includes('hover'))
+                            .join('.');
+                         return cls ? '.' + cls : '';
+                    }
+
+                    // Check if element is likely a list item (has siblings with similar structure)
+                    function isRepeatingElement(el) {
+                        if (!el || !el.parentElement) return false;
+                        if (el.tagName === 'BODY' || el.tagName === 'HTML') return false;
+                        
+                        const tag = el.tagName;
+                        const cls = getSimpleClassSelector(el);
+                        
+                        // Count siblings with same tag and (optionally) class
+                        let siblings = el.parentElement.children;
+                        let count = 0;
+                        for (let sib of siblings) {
+                            if (sib === el) continue;
+                            if (sib.tagName === tag) {
+                                if (!cls || getSimpleClassSelector(sib) === cls) {
+                                    count++;
+                                }
+                            }
+                        }
+                        // If it has at least one similar sibling, it's a candidate
+                        return count > 0;
+                    }
+
+                    // Find the best "List Item" candidate by walking up from the clicked target
+                    function findSmartListItem(target) {
+                        let candidate = target;
+                        // Walk up max 5 levels
+                        for (let i = 0; i < 5; i++) {
+                            if (isRepeatingElement(candidate)) {
+                                return candidate; // Found a repeating element!
+                            }
+                            if (candidate.parentElement) candidate = candidate.parentElement;
+                            else break;
+                        }
+                        return target; // Fallback to original click if no repeater found
+                    }
+
+                    function generateSelector(el, mode) {
+                        if (!el) return '';
+                         // 1. If Item Mode: Bias towards class names of repeating elements
+                        if (mode === 'item') {
+                            const cls = getSimpleClassSelector(el);
+                            if (cls) {
+                                // Verify uniqueness? No, for items we WANT multiple matches.
+                                // But check if it matches TOO much (like 'div')?
+                                // If class exists, use it.
+                                return el.tagName.toLowerCase() + cls;
+                            }
+                        }
+                        
+                        // 2. Generic ID fallback
+                        if (el.id) return '#' + el.id;
+
+                        // 3. Fallback to Tag + Class
+                        const cls = getSimpleClassSelector(el);
+                        if (cls) return el.tagName.toLowerCase() + cls;
+
+                        // 4. Worst case: Tag only (risky) or nth-child path?
+                        // Let's keep it simple for now, maybe add parent context
+                        if (el.parentElement && el.parentElement.id) {
+                            return '#' + el.parentElement.id + ' > ' + el.tagName.toLowerCase();
+                        }
+                        
+                        return el.tagName.toLowerCase();
+                    }
+
+                    // Mouse interactions
+                    let lastHovered = null;
+
+                    document.body.addEventListener('mouseover', (e) => {
+                        e.stopPropagation();
+                        // Remove highlight from previous
+                        if (lastHovered) lastHovered.classList.remove('rss-worker-hover');
+                        
+                        let target = e.target;
+                        if (target.tagName === 'HTML') return;
+
+                        // In ITEM mode, preview the smart selection (the repeating parent)
+                        if (currentMode === 'item') {
+                            target = findSmartListItem(target);
+                        }
+
+                        target.classList.add('rss-worker-hover');
+                        lastHovered = target;
+                    });
                     
-                    return { selector: path.join(' ') };
+                    document.body.addEventListener('mouseout', (e) => {
+                        e.stopPropagation();
+                         if (lastHovered) {
+                            lastHovered.classList.remove('rss-worker-hover');
+                            lastHovered = null;
+                        }
+                    });
+                    
+                    document.body.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        let target = e.target;
+                        
+                        // SMART LOGIC:
+                        if (currentMode === 'item') {
+                            // Find nearest repeating parent
+                            target = findSmartListItem(target);
+                        }
+
+                        // Flash effect
+                        target.classList.add('rss-worker-selected');
+                        setTimeout(() => target.classList.remove('rss-worker-selected'), 500);
+
+                        // Generate selector
+                        const selector = generateSelector(target, currentMode);
+                        
+                        console.log('[Proxy] Selected:', selector);
+                        showToast('已选择: ' + selector);
+
+                        // Notify parent
+                        window.parent.postMessage({
+                            type: 'selected',
+                            mode: currentMode,
+                            selector: selector
+                        }, '*');
+
+                        return false;
+                    }, true);
                 }
             })();
             </script>
             `;
 
-            // Inject Sniffer Script EARLY (Head) if enabled
-            if (enableJs && snifferScript) {
-                if (html.includes('<head>')) {
-                    html = html.replace('<head>', () => '<head>' + snifferScript);
-                } else {
-                    html = snifferScript + html;
-                }
+            // Append to body
+            if (html.includes('</body>')) {
+                html = html.replace('</body>', selectorHelperScript + '</body>');
+            } else {
+                html += selectorHelperScript;
             }
 
-            // Inject Helper Script (Visual Selector) ONLY if JS is disabled (Normal Preview Mode)
-            if (!enableJs) {
-                if (html.includes('</body>')) {
-                    html = html.replace('</body>', () => `${helperScript}</body> `);
-                } else {
-                    html += helperScript;
-                }
-            }
+            const baseUrl = new URL(targetUrl);
+            const baseTag = `<base href="${baseUrl.origin}${baseUrl.pathname.substring(0, baseUrl.pathname.lastIndexOf('/') + 1)}">`;
+            // Remove existing base tag first to avoid duplicates
+            html = html.replace(/<base[^>]*>/i, '');
+            // Inject new base tag after head
+            html = html.replace('<head>', `<head>${baseTag}`);
 
             // Strip restrictive headers
             const newHeaders = new Headers(targetResp.headers);
@@ -379,8 +323,50 @@ export async function handleProxyRequest(path, request, env) {
                 headers: newHeaders
             });
         } catch (e) {
+            console.error('[Visual Proxy] Global Error:', e);
             const msg = e && e.message ? e.message : String(e);
-            return new Response(JSON.stringify({ error: 'Proxy Error', message: msg }), { status: 502, headers: { 'Content-Type': 'application/json' } });
+
+            // Return visual error page
+            const errorHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8"><title>Proxy Error</title>
+                <style>
+                    body{font-family:-apple-system,sans-serif;padding:2rem;color:#333;background:#fff5f5}
+                    .error-box{background:white;border:1px solid #fc8181;border-radius:8px;padding:2rem;box-shadow:0 4px 6px rgba(0,0,0,0.05);max-width:800px;margin:0 auto}
+                    h2{color:#c53030;margin-top:0;border-bottom:1px solid #eee;padding-bottom:1rem}
+                    pre{background:#f7fafc;padding:1rem;border-radius:6px;overflow-x:auto;font-size:0.9em;border:1px solid #e2e8f0}
+                    .info{margin-top:1.5rem;padding:1rem;background:#ebf8ff;border-radius:6px;color:#2c5282;font-size:0.95em}
+                </style>
+            </head>
+            <body>
+                <div class="error-box">
+                    <h2>⚠️ 预览服务错误</h2>
+                    <p>无法加载目标网页，可能是配置问题或网络拦截。</p>
+                    <div style="margin-bottom:1rem">
+                        <strong>错误信息：</strong>
+                        <pre>${msg}</pre>
+                        ${e.stack ? `<details><summary style="cursor:pointer;color:#718096;font-size:0.8em">查看调用栈</summary><pre style="margin-top:0.5rem;font-size:0.8em">${e.stack}</pre></details>` : '<!-- no stack -->'}
+                    </div>
+                    <div class="info">
+                        <strong>排查建议：</strong>
+                        <ul style="margin:0.5rem 0 0 1.2rem">
+                            <li>如果是 <strong>Puppeteer</strong> 模式，请检查 API Key 是否正确填写并已保存。</li>
+                            <li>目标网站可能屏蔽了 Cloudflare IP 或 headless 浏览器。</li>
+                            <li>尝试在 "域名配置" 中使用 "Test Saved Config" 功能验证配置。</li>
+                            <li>检查 URL 是否拼写正确且可公开访问。</li>
+                        </ul>
+                    </div>
+                </div>
+            </body>
+            </html>
+            `;
+
+            return new Response(errorHtml, {
+                status: 502,
+                headers: { 'Content-Type': 'text/html; charset=utf-8' }
+            });
         }
     }
 
@@ -391,22 +377,24 @@ export async function handleProxyRequest(path, request, env) {
 
         // Check auth
         if (!checkAuth(request, env)) {
-            return new Response('Unauthorized', { status: 401 });
+            return new Response("Unauthorized", { status: 401 });
         }
 
         try {
-            const targetResp = await fetchWithHeaders(targetUrl);
-            const body = await targetResp.text();
-            return new Response(body, {
-                headers: {
-                    'Content-Type': targetResp.headers.get('content-type') || 'text/plain',
-                    'Access-Control-Allow-Origin': '*'
-                }
+            // NOTE: Generic proxy handles data URLs and internal requests in frontend usually,
+            // but we support fetching here too.
+            const resp = await fetchWithHeaders(targetUrl);
+            const newHeaders = new Headers(resp.headers);
+            newHeaders.set('Access-Control-Allow-Origin', '*');
+
+            return new Response(resp.body, {
+                status: resp.status,
+                headers: newHeaders
             });
         } catch (e) {
-            return new Response("Proxy Error: " + e.message, { status: 500 });
+            return new Response("Proxy failed: " + e.message, { status: 502 });
         }
     }
 
-    return null; // Not handled
+    return null;
 }

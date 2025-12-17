@@ -1,0 +1,94 @@
+// --- Navigation ---
+async function showPage(pageId) {
+    // 隐藏所有页面
+    document.querySelectorAll('.page-content').forEach(el => el.classList.add('hidden'));
+    document.getElementById('page-' + pageId).classList.remove('hidden');
+
+    // 更新导航按钮状态
+    document.querySelectorAll('.nav-btn').forEach(el => {
+        if (el.dataset.target === pageId) {
+            el.classList.add('active', 'bg-blue-600', 'text-white');
+            el.classList.remove('text-gray-900', 'font-medium', 'hover:bg-gray-100');
+        } else {
+            el.classList.remove('active', 'bg-blue-600', 'text-white');
+            el.classList.add('text-gray-900', 'font-medium', 'hover:bg-gray-100');
+        }
+    });
+
+    // 如果切换到列表页面或合集页面，优先加载 Token Context
+    if (pageId === 'list' || pageId === 'folders') {
+        try {
+            await loadTokenContext();
+        } catch (e) { console.error('Token load failed', e); }
+    }
+
+    // 页面特定逻辑
+    if (pageId === 'list') {
+        loadRoutes();
+    } else if (pageId === 'folders') {
+        loadFolders();
+    } else if (pageId === 'tokens') {
+        loadTokens();
+    } else if (pageId === 'domains') {
+        loadDomains();
+    } else if (pageId === 'settings') {
+        loadSettings();
+    } else if (pageId === 'dashboard') {
+        updateStats();
+    } else if (pageId === 'editor') {
+        // 如果是新建路由（非编辑），重置表单
+        const routeKey = document.getElementById('routeKey').value;
+        if (!routeKey || !cachedRoutes[routeKey]) {
+            resetForm();
+        } else {
+            // 编辑模式也隐藏调试日志
+            const debugSection = document.getElementById('debugLogs');
+            if (debugSection) {
+                debugSection.classList.add('hidden');
+            }
+        }
+    }
+
+    // 更新浏览器 URL 的 ?tab= 参数（不刷新页面），便于分享或直接访问
+    try {
+        const u = new URL(location.href);
+        u.searchParams.set('tab', pageId);
+        // 使用 replaceState 避免产生多条历史记录；用户也可以手动后退
+        history.replaceState(null, '', u.pathname + (u.search ? '?' + u.searchParams.toString() : '') + (u.hash || ''));
+    } catch (e) {
+        // ignore
+    }
+}
+
+function resetForm() {
+    document.getElementById('routeForm').reset();
+    // 重置为预览模式
+    document.getElementById('previewTitle').textContent = '可视化预览';
+    document.getElementById('visualPreview').classList.remove('hidden');
+    document.getElementById('testResult').classList.add('hidden');
+    document.getElementById('previewFrame').src = '';
+    document.getElementById('usePuppeteer').checked = false;
+    // 隐藏调试日志
+    const debugSection = document.getElementById('debugLogs');
+    if (debugSection) {
+        debugSection.classList.add('hidden');
+        debugSection.innerHTML = '';
+    }
+}
+
+// Collapsible Panel Logic
+window.toggleConfigPanel = function () {
+    const content = document.getElementById('configPanelContent');
+    const icon = document.getElementById('configPanelIcon');
+    const panel = document.getElementById('configPanel');
+
+    if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.style.transform = 'rotate(0deg)';
+        panel.classList.remove('border-b-0'); // Add border back if needed
+    } else {
+        content.classList.add('hidden');
+        icon.style.transform = 'rotate(-90deg)';
+        panel.classList.add('border-b-0'); // Remove potential double border
+    }
+};

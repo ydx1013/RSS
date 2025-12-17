@@ -1,0 +1,82 @@
+// --- Initialization ---
+
+document.addEventListener('DOMContentLoaded', async () => {
+    // 1. Check Auth & Load Initial Data
+    await checkAuth();
+
+    // 2. Setup Login Listener
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const password = document.getElementById('loginPassword').value;
+            const errorEl = document.getElementById('loginError');
+
+            try {
+                const response = await fetch('/admin/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    sessionStorage.setItem('adminToken', data.token);
+                    document.getElementById('loginPage').classList.add('hidden');
+                    document.getElementById('adminPanel').classList.remove('hidden');
+                    loadRoutes(); // Default load
+                    loadSettings(); // Load global settings
+                } else {
+                    errorEl.textContent = '密码错误！';
+                    errorEl.classList.remove('hidden');
+                }
+            } catch (err) {
+                errorEl.textContent = '登录失败，请重试';
+                errorEl.classList.remove('hidden');
+            }
+        });
+    }
+
+    // 3. Initial Load of Settings (if already authed)
+    if (sessionStorage.getItem('adminToken') && !document.getElementById('loginPage').classList.contains('hidden') === false) {
+        loadSettings();
+    }
+
+    // 4. Setup Global Listeners
+    // Logout
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+            if (confirm('确定退出登录?')) {
+                sessionStorage.removeItem('adminToken');
+                location.reload();
+            }
+        });
+    }
+
+    // Mobile Menu
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    const mobileMenu = document.getElementById('mobileMenu');
+    if (mobileMenuBtn && mobileMenu) {
+        mobileMenuBtn.addEventListener('click', () => {
+            const isHidden = mobileMenu.classList.contains('hidden');
+            if (isHidden) mobileMenu.classList.remove('hidden');
+            else mobileMenu.classList.add('hidden');
+        });
+    }
+
+    // 5. Handle Tab State from URL (optional, useful for refreshes)
+    // Simple check if we want to default to a specific page
+    // Current logic uses showPage('list') as default in checkAuth success path (loadRoutes implies list view usually)
+
+    // 6. Sniffer Toggle
+    const snifferBtn = document.getElementById('snifferBtn');
+    if (snifferBtn) {
+        snifferBtn.onclick = toggleSniffer;
+    }
+});
+
+// Error handling for unhandled rejections
+window.addEventListener('unhandledrejection', event => {
+    console.warn('Unhandled promise rejection:', event.reason);
+});

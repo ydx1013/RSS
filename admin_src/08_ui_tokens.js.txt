@@ -1,0 +1,439 @@
+// --- Token Management ---
+
+const TOKENS_API = '/api/tokens';
+const ADMIN_SETTINGS_API = '/api/admin/settings';
+window.cachedTokens = {}; // Cache for dropdowns
+window.adminSettings = {}; // Cache for settings
+
+// Global copy helper (if not defined elsewhere)
+if (typeof window.copyText === 'undefined') {
+    window.copyText = function (text) {
+        if (!text) return;
+        navigator.clipboard.writeText(text).then(() => {
+            alert('已复制到剪贴板: ' + text);
+        }).catch(err => {
+            prompt('复制失败，请手动复制:', text);
+        });
+    };
+}
+
+async function loadTokenContext() {
+    // Populate the dropdown in List page
+    const select = document.getElementById('tokenContextSelect');
+    if (!select) return;
+
+    // 1. Load Admin Settings (KV)
+    try {
+        const res = await authFetch(ADMIN_SETTINGS_API);
+        if (res.ok) {
+            window.adminSettings = await res.json();
+        }
+    } catch (e) { console.error('Failed to load settings', e); }
+
+    let currentVal = window.adminSettings.savedRouteToken || '';
+
+    // 2. Load Available Tokens
+    let tokens = window.cachedTokens || {};
+    if (Object.keys(tokens).length === 0) {
+        try {
+            const res = await authFetch(TOKENS_API);
+            if (res.ok) {
+                tokens = await res.json();
+                window.cachedTokens = tokens;
+            }
+        } catch (e) { }
+    }
+
+    // Render options
+    let html = '<option value="">-- 无 Token (默认) --</option>';
+    const list = Object.values(tokens).sort((a, b) => b.createdAt - a.createdAt);
+    list.forEach(t => {
+        if (t.active !== false) {
+            html += `<option value="${escapeHtml(t.value)}">${escapeHtml(t.name || t.id)}</option>`;
+        }
+    });
+    select.innerHTML = html;
+    select.value = currentVal; // Restore selection from KV
+
+    // Update UI status immediately
+    updateTokenStatusUI();
+
+    // Re-render lists if they are visible, to ensure token is appended
+    // This handles the race condition where loadRoutes() finishes before loadTokenContext()
+    if (document.getElementById('page-list') && !document.getElementById('page-list').classList.contains('hidden')) {
+        if (typeof renderList === 'function') renderList();
+    }
+    if (document.getElementById('page-folders') && !document.getElementById('page-folders').classList.contains('hidden')) {
+        if (typeof renderFolders === 'function') renderFolders();
+    }
+}
+
+function updateTokenStatusUI() {
+    const select = document.getElementById('tokenContextSelect');
+    const status = document.getElementById('tokenContextStatus');
+    if (!select) return;
+
+    const val = select.value;
+    if (val) {
+        const tokenName = select.options[select.selectedIndex].text;
+        if (status) {
+            status.textContent = `已附加: ${tokenName}`;
+            status.className = 'text-xs text-green-600 font-medium';
+        }
+    } else {
+        if (status) status.textContent = '';
+    }
+}
+
+window.onTokenContextChange = async function () {
+    const select = document.getElementById('tokenContextSelect');
+    const val = select ? select.value : '';
+
+    updateTokenStatusUI();
+
+    // Save to KV (Server-side)
+    try {
+        window.adminSettings.savedRouteToken = val;
+        await authFetch(ADMIN_SETTINGS_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ savedRouteToken: val })
+        });
+    } catch (e) {
+        console.error('Failed to save settings', e);
+    }
+
+    // Re-render list/folders
+    const u = new URL(location.href);
+    const tab = u.searchParams.get('tab');
+    if (tab === 'list' && typeof renderRoutes === 'function') renderRoutes(); // renderRoutes alias? No, it's renderList usually.
+    else if (tab === 'list' && typeof renderList === 'function') renderList();
+    else if (tab === 'folders' && typeof renderFolders === 'function') renderFolders();
+};
+
+async function loadTokens() {
+    const tbody = document.getElementById('tokenListBody');
+    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">加载中...</td></tr>';
+    try {
+        const res = await authFetch(TOKENS_API);
+        if (res.ok) {
+            const tokens = await res.json();
+            window.cachedTokens = tokens; // Update cache
+            renderTokens(tokens);
+            loadTokenContext(); // Update dropdown
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-red-500">加载失败</td></tr>';
+        }
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-red-500">加载错误: ' + escapeHtml(e.message) + '</td></tr>';
+    }
+}
+
+function renderTokens(tokensMap) {
+    const tbody = document.getElementById('tokenListBody');
+    const list = Object.values(tokensMap || {}).sort((a, b) => b.createdAt - a.createdAt);
+
+    if (list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-gray-400">暂无访问令牌</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = list.map(t => {
+        const isExpired = t.expiresAt && Date.now() > t.expiresAt;
+        const statusClass = !t.active ? 'bg-gray-100 text-gray-500' : (isExpired ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700');
+        const statusText = !t.active ? '已禁用' : (isExpired ? '已过期' : '使用中');
+        const usage = t.requestsToday || 0;
+        const limit = t.maxRequestsPerDay ? (' / ' + t.maxRequestsPerDay) : ' (无限制)';
+        const expireDate = t.expiresAt ? new Date(t.expiresAt).toLocaleDateString() : '永久有效';
+
+        return `
+        <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                ${escapeHtml(t.name || t.id)}
+                ${t.note ? `<div class="text-xs text-gray-500 font-normal">${escapeHtml(t.note)}</div>` : ''}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 cursor-pointer hover:text-blue-600" title="点击复制" onclick="copyText('${escapeHtml(t.value)}')">
+                <div class="flex items-center gap-1">
+                    <span class="font-mono bg-gray-100 px-2 py-0.5 rounded text-xs select-all">${escapeHtml(t.value.substring(0, 12))}...</span>
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
+                </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                ${usage}${limit}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                    ${statusText}
+                </span>
+                <div class="text-xs text-gray-400 mt-0.5">${expireDate}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <button onclick='openLinksModal(${JSON.stringify(t).replace(/'/g, "&#39;")})' class="text-green-600 hover:text-green-900 mr-3">获取链接</button>
+                <button onclick='openTokenModal(${JSON.stringify(t).replace(/'/g, "&#39;")})' class="text-indigo-600 hover:text-indigo-900 mr-3">编辑</button>
+                <button onclick="deleteToken('${t.id}')" class="text-red-600 hover:text-red-900">删除</button>
+            </td>
+        </tr>
+        `;
+    }).join('');
+}
+
+window.openTokenModal = function (token) {
+    const modal = document.getElementById('tokenModal');
+    document.getElementById('tokenModalTitle').textContent = token ? '编辑令牌' : '新建令牌';
+    document.getElementById('tokenId').value = token ? token.id : '';
+    document.getElementById('tokenName').value = token ? (token.name || '') : '';
+    document.getElementById('tokenLimit').value = token ? (token.maxRequestsPerDay || '') : '';
+
+    // Format date for input[type=date] (YYYY-MM-DD)
+    let dateStr = '';
+    if (token && token.expiresAt) {
+        const d = new Date(token.expiresAt);
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        dateStr = `${year}-${month}-${day}`;
+    }
+    document.getElementById('tokenExpire').value = dateStr;
+
+    document.getElementById('tokenActive').checked = token ? (token.active !== false) : true;
+
+    // Render Checkboxes
+    renderTokenRouteSelection(token);
+
+    modal.classList.remove('hidden');
+}
+
+function renderTokenRouteSelection(token) {
+    const container = document.getElementById('tokenRouteList');
+    const filterInput = document.getElementById('tokenRouteFilter');
+    if (filterInput) filterInput.value = '';
+
+    const allowed = (token && token.allowedRoutes) ? new Set(token.allowedRoutes) : new Set();
+
+    const keys = Object.keys(cachedRoutes || {}).sort();
+    if (keys.length === 0) {
+        container.innerHTML = '<div class="text-xs text-gray-500 p-2">暂无路由</div>';
+        return;
+    }
+
+    // Extract unique folders
+    const folders = new Set();
+    keys.forEach(key => {
+        if (cachedRoutes[key] && cachedRoutes[key].folder) {
+            folders.add(cachedRoutes[key].folder);
+        }
+    });
+
+    const folderList = Array.from(folders).sort();
+
+    let html = '';
+
+    // Render Folders first
+    if (folderList.length > 0) {
+        html += '<div class="text-xs font-bold text-gray-500 mb-1 mt-2">合集 (Folders)</div>';
+        html += folderList.map(folder => {
+            const checked = allowed.has(folder) ? 'checked' : '';
+            return `<label class="flex items-center gap-2 p-1 hover:bg-gray-100 rounded cursor-pointer bg-blue-50 mb-1">
+                        <input type="checkbox" value="${escapeHtml(folder)}" class="token-route-check" ${checked}>
+                        <span class="truncate font-medium text-blue-700" title="Folder: ${folder}">📁 ${escapeHtml(folder)}</span>
+                        </label>`;
+        }).join('');
+        html += '<div class="text-xs font-bold text-gray-500 mb-1 mt-2">路由 (Routes)</div>';
+    }
+
+    html += keys.map(key => {
+        const checked = allowed.has(key) ? 'checked' : '';
+        return `<label class="flex items-center gap-2 p-1 hover:bg-gray-100 rounded cursor-pointer">
+                    <input type="checkbox" value="${escapeHtml(key)}" class="token-route-check" ${checked}>
+                    <span class="truncate" title="${key}">${escapeHtml(key)}</span>
+                    </label>`;
+    }).join('');
+    container.innerHTML = html;
+}
+
+window.filterTokenRoutes = function () {
+    const term = document.getElementById('tokenRouteFilter').value.toLowerCase();
+    const labels = document.querySelectorAll('#tokenRouteList label');
+    labels.forEach(lbl => {
+        const txt = lbl.textContent.toLowerCase();
+        lbl.style.display = txt.includes(term) ? 'flex' : 'none';
+    });
+}
+
+window.closeTokenModal = function () {
+    document.getElementById('tokenModal').classList.add('hidden');
+}
+
+window.saveToken = async function () {
+    const id = document.getElementById('tokenId').value;
+    const name = document.getElementById('tokenName').value;
+    const limit = document.getElementById('tokenLimit').value;
+    const expireDate = document.getElementById('tokenExpire').value;
+    const active = document.getElementById('tokenActive').checked;
+
+    // Gather checkboxes
+    const checkedBoxes = document.querySelectorAll('.token-route-check:checked');
+    const allowedRoutes = Array.from(checkedBoxes).map(cb => cb.value);
+
+    let expiresAt = null;
+    if (expireDate) {
+        expiresAt = new Date(expireDate).setHours(23, 59, 59, 999);
+    }
+
+    const payload = {
+        id: id || undefined,
+        name: name || (id ? undefined : 'Token ' + Date.now()),
+        maxRequestsPerDay: limit ? parseInt(limit) : null,
+        expiresAt: expiresAt,
+        allowedRoutes: allowedRoutes,
+        active: active
+    };
+
+    const btn = document.getElementById('saveTokenBtn');
+    const originalText = btn.textContent;
+    btn.textContent = '保存中...';
+    btn.disabled = true;
+
+    try {
+        const method = id ? 'PUT' : 'POST';
+        const res = await authFetch(TOKENS_API, {
+            method: method,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+            closeTokenModal();
+            loadTokens();
+        } else {
+            const txt = await res.text();
+            alert('保存失败: ' + txt);
+        }
+    } catch (e) {
+        alert('请求错误: ' + e.message);
+    } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+    }
+}
+
+window.deleteToken = async function (id) {
+    if (!confirm('确定要删除这个令牌吗？此操作不可恢复。')) return;
+    try {
+        const res = await authFetch(TOKENS_API + '?id=' + id, { method: 'DELETE' });
+        if (res.ok) {
+            loadTokens();
+        } else {
+            alert('删除失败');
+        }
+    } catch (e) {
+        alert('请求错误: ' + e.message);
+    }
+}
+
+// --- Token Links Modal ---
+let currentLinkToken = null; // 保存当前正在显示链接的 Token
+
+window.openLinksModal = function (token) {
+    currentLinkToken = token; // 保存token
+    const modal = document.getElementById('linksModal');
+    document.getElementById('linksModalTitle').textContent = '订阅链接 - ' + (token.name || token.id);
+    document.getElementById('linkSearch').value = '';
+
+    renderTokenLinks(token);
+    modal.classList.remove('hidden');
+}
+
+window.renderTokenLinks = function (token) {
+    const container = document.getElementById('tokenLinksList');
+    const allowed = (token && token.allowedRoutes && token.allowedRoutes.length > 0) ? new Set(token.allowedRoutes) : null;
+
+
+    const keys = Object.keys(cachedRoutes || {});
+    const origin = location.origin;
+    const tokenParam = '&token=' + token.value;
+
+    let html = '';
+    keys.sort().forEach(key => {
+        // Filter by permission
+        if (allowed && !allowed.has(key)) return;
+
+        const routeConfig = cachedRoutes[key] || {};
+        const originalUrl = routeConfig.url || '';
+
+
+        html += `
+        <div class="p-3 bg-white border-b border-gray-100 link-item flex flex-col gap-2">
+            <div class="flex justify-between items-start">
+                <div class="font-medium text-sm text-gray-900 truncate" title="${escapeHtml(key)}">${escapeHtml(key)}</div>
+                <div class="flex gap-2 flex-shrink-0">
+                        <button onclick="copyText('${origin}/?custom=${key}.rss${tokenParam}')" class="text-xs bg-orange-50 text-orange-600 px-2 py-1 rounded border border-orange-200 hover:bg-orange-100">复制 RSS</button>
+                        <button onclick="copyText('${origin}/?custom=${key}.atom${tokenParam}')" class="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-200 hover:bg-blue-100">复制 Atom</button>
+                        <button onclick="copyText('${origin}/?custom=${key}.json${tokenParam}')" class="text-xs bg-green-50 text-green-600 px-2 py-1 rounded border border-green-200 hover:bg-green-100">复制 JSON</button>
+                </div>
+            </div>
+            <div class="text-xs text-gray-400 font-mono truncate select-all bg-gray-50 p-1 rounded">
+                ${origin}/?custom=${key}.rss${tokenParam}
+            </div>
+
+        </div>`;
+    });
+
+    // Render Folder Links
+    const folders = new Set();
+    keys.forEach(k => { if (cachedRoutes[k] && cachedRoutes[k].folder) folders.add(cachedRoutes[k].folder); });
+    Array.from(folders).sort().forEach(folder => {
+        if (allowed && !allowed.has(folder)) return;
+        html = `
+        <div class="p-3 bg-blue-50 border-b border-gray-100 link-item flex flex-col gap-2">
+            <div class="flex justify-between items-start">
+                    <div class="flex items-center gap-1 overflow-hidden">
+                        <span class="text-blue-500 font-bold text-xs flex-shrink-0">[合集]</span>
+                        <div class="font-medium text-sm text-blue-900 truncate" title="${escapeHtml(folder)}">${escapeHtml(folder)}</div>
+                    </div>
+                <div class="flex gap-2 flex-shrink-0">
+                        <button onclick="copyText('${origin}/?folder=${encodeURIComponent(folder)}&format=rss${tokenParam}')" class="text-xs bg-orange-50 text-orange-600 px-2 py-1 rounded border border-orange-200 hover:bg-orange-100">复制 RSS</button>
+                        <button onclick="copyText('${origin}/?folder=${encodeURIComponent(folder)}&format=atom${tokenParam}')" class="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded border border-blue-200 hover:bg-blue-100">复制 Atom</button>
+                        <button onclick="copyText('${origin}/?folder=${encodeURIComponent(folder)}&format=json${tokenParam}')" class="text-xs bg-green-50 text-green-600 px-2 py-1 rounded border border-green-200 hover:bg-green-100">复制 JSON</button>
+                </div>
+            </div>
+            <div class="text-xs text-blue-400 font-mono truncate select-all bg-blue-50/50 p-1 rounded">
+                ${origin}/?folder=${encodeURIComponent(folder)}&format=rss${tokenParam}
+            </div>
+        </div>` + html; // Prepend folders
+    });
+
+    if (html === '') {
+        if (keys.length === 0) {
+            html = '<div class="p-4 text-center text-gray-500 text-sm">暂无路由数据，正在尝试加载...</div>';
+            container.innerHTML = html;
+            // Lazy load routes
+            if (!window._routesLoadedSilent) {
+                window._routesLoadedSilent = true;
+                authFetch('/api/routes').then(r => r.json()).then(data => {
+                    window.cachedRoutes = data;
+                    renderTokenLinks(token);
+                }).catch(e => {
+                    container.innerHTML = '<div class="p-4 text-center text-red-500 text-sm">加载路由失败，请刷新页面重试。</div>';
+                });
+                return;
+            } else {
+                html = '<div class="p-4 text-center text-gray-500 text-sm">暂无路由配置。</div>';
+            }
+        } else {
+            html = '<div class="p-4 text-center text-gray-500 text-sm">此 Token 没有权限访问任何现有路由。</div>';
+        }
+    }
+
+    container.innerHTML = html;
+}
+
+window.filterTokenLinks = function () {
+    const term = document.getElementById('linkSearch').value.toLowerCase();
+    const items = document.querySelectorAll('#tokenLinksList .link-item');
+    items.forEach(item => {
+        const txt = item.textContent.toLowerCase();
+        item.style.display = txt.includes(term) ? 'flex' : 'none';
+    });
+}

@@ -1,0 +1,595 @@
+// --- Visual Selector ---
+let currentVisualMode = 'item';
+let currentPreviewMode = 'item';
+// JSON/RSS sniffing state
+let isSniffing = false;
+
+// 预览模式切换函数
+window.setPreviewMode = function (mode) {
+    currentPreviewMode = mode;
+    const type = document.getElementById('type').value;
+
+    // Update UI buttons
+    document.querySelectorAll('#visualPreview .tool-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-100', 'text-blue-700', 'border-blue-300');
+        btn.classList.add('bg-white', 'text-gray-700');
+    });
+
+    const btn = document.getElementById('preview-btn-' + mode);
+    if (btn) {
+        btn.classList.remove('bg-white', 'text-gray-700');
+        btn.classList.add('bg-blue-100', 'text-blue-700', 'border-blue-300');
+    }
+
+    // 发送模式到 iframe（仅在 HTML 模式下）
+    if (type !== 'json') {
+        const frame = document.getElementById('previewFrame');
+        if (frame.contentWindow && frame.src) {
+            const itemSelector = document.getElementById('itemSelector').value;
+            frame.contentWindow.postMessage({
+                type: 'setMode',
+                mode: mode,
+                selectorType: type,
+                itemSelector: itemSelector
+            }, '*');
+        }
+    }
+};
+
+// Collapsible Panel Logic (Moved from Navigation to here or kept global? It was in 02_nav.js, but duplicated in source. I will rely on 02_nav.js for it if exported, or just ensure it exists.)
+// It is in 02_nav.js, so I won't redefine it here to avoid conflicts, or I check if it exists.
+// Actually 02_nav.js defines it on window. So it's fine.
+
+function xmlToJson(xml) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, "text/xml");
+
+    function elementToObj(element) {
+        const obj = {};
+        // Attributes
+        if (element.attributes && element.attributes.length > 0) {
+            for (let i = 0; i < element.attributes.length; i++) {
+                const attr = element.attributes[i];
+                obj['@' + attr.name] = attr.value;
+            }
+        }
+
+        // Children
+        if (element.children.length === 0) {
+            const text = element.textContent.trim();
+            if (Object.keys(obj).length === 0) return text;
+            if (text) obj['#text'] = text;
+            return obj;
+        }
+
+        for (let i = 0; i < element.children.length; i++) {
+            const child = element.children[i];
+            const childName = child.tagName;
+            const childObj = elementToObj(child);
+
+            if (obj[childName]) {
+                if (!Array.isArray(obj[childName])) {
+                    obj[childName] = [obj[childName]];
+                }
+                obj[childName].push(childObj);
+            } else {
+                obj[childName] = childObj;
+            }
+        }
+        return obj;
+    }
+
+    const root = doc.documentElement;
+    const result = {};
+    if (root) {
+        result[root.tagName] = elementToObj(root);
+    }
+    return result;
+}
+
+
+// 加载预览页面
+window.loadPreview = async function () {
+    const rawUrl = document.getElementById('url').value;
+    const url = rawUrl ? normalizeUrl(rawUrl) : rawUrl;
+    const type = document.getElementById('type').value;
+
+    // 确保切换回预览模式
+    document.getElementById('previewTitle').textContent = '可视化预览';
+    document.getElementById('visualPreview').classList.remove('hidden');
+    document.getElementById('testResult').classList.add('hidden');
+
+    if (!url) {
+        document.getElementById('previewFrame').src = '';
+        document.getElementById('jsonPreview').innerHTML = '';
+        return;
+    }
+
+    if (type === 'json' || type === 'rss') {
+        // JSON/RSS Preview
+        document.getElementById('previewFrame').classList.add('hidden');
+        document.getElementById('previewToolbar').classList.remove('hidden'); // Show toolbar
+        document.getElementById('jsonPreview').classList.remove('hidden');
+        document.getElementById('jsonPreview').innerHTML = '<div class="text-center text-gray-400 py-10">加载中...</div>';
+
+        // Update toolbar labels
+        document.getElementById('preview-btn-item').textContent = '📦 列表数组';
+        document.getElementById('preview-btn-title').textContent = '📝 标题字段';
+        document.getElementById('preview-btn-link').textContent = '🔗 链接字段';
+        document.getElementById('preview-btn-desc').textContent = '📄 描述字段';
+        document.getElementById('preview-btn-date').textContent = '📅 日期字段';
+
+        try {
+            // Use proxy to get raw content
+            // Prefer saved route encoding when editing an existing route
+            const routeKey = document.getElementById('routeKey').value;
+            let enc = document.getElementById('encoding').value || 'auto';
+            if (routeKey && cachedRoutes[routeKey] && cachedRoutes[routeKey].encoding) enc = cachedRoutes[routeKey].encoding;
+            const encVal = encodeURIComponent(enc);
+            const response = await authFetch(PROXY_JSON_API + '?url=' + encodeURIComponent(url) + '&encoding=' + encVal);
+            let data;
+            if (type === 'rss') {
+                const text = await response.text();
+                data = xmlToJson(text);
+            } else {
+                data = await response.json();
+            }
+            renderJsonTree(data, '', 0, document.getElementById('jsonPreview'));
+        } catch (e) {
+            document.getElementById('jsonPreview').innerHTML = '<div class="text-center text-red-400 py-10">加载失败: ' + e.message + '</div>';
+        }
+        return;
+    }
+
+    // HTML Preview
+    document.getElementById('previewFrame').classList.remove('hidden');
+    document.getElementById('previewToolbar').classList.remove('hidden');
+    document.getElementById('jsonPreview').classList.add('hidden');
+
+    // Reset toolbar labels for HTML
+    document.getElementById('preview-btn-item').textContent = '条目';
+    document.getElementById('preview-btn-title').textContent = '标题';
+    document.getElementById('preview-btn-link').textContent = '链接';
+    document.getElementById('preview-btn-desc').textContent = '描述';
+    document.getElementById('preview-btn-date').textContent = '日期';
+
+    const previewFrame = document.getElementById('previewFrame');
+    const jsonPreview = document.getElementById('jsonPreview');
+    // Use fetch to detect proxy errors (Cloudflare 1002 etc.) and show friendly message
+    (async () => {
+        try {
+            // Prefer saved route encoding when editing an existing route
+            const routeKey = document.getElementById('routeKey').value;
+            let enc = document.getElementById('encoding').value || 'auto';
+            if (routeKey && cachedRoutes[routeKey] && cachedRoutes[routeKey].encoding) enc = cachedRoutes[routeKey].encoding;
+            const encVal = encodeURIComponent(enc);
+
+            const usePuppeteer = document.getElementById('usePuppeteer').checked;
+            let apiUrl = PROXY_API + '?url=' + encodeURIComponent(url) + '&encoding=' + encVal;
+            if (usePuppeteer) {
+                apiUrl += '&use_puppeteer=true';
+                const w = document.getElementById('puppeteerWaitSelector').value;
+                if (w) apiUrl += '&wait=' + encodeURIComponent(w);
+            }
+
+            const res = await authFetch(apiUrl);
+            const ct = res.headers.get('content-type') || '';
+            if (ct.includes('application/json')) {
+                const data = await res.json();
+                // If proxy returned structured error, show friendly message instead of raw error page
+                if (data && data.error) {
+                    previewFrame.classList.add('hidden');
+                    jsonPreview.classList.remove('hidden');
+                    jsonPreview.innerHTML = `<div class="text-center p-6 text-sm text-red-600">预览失败: ${escapeHtml(data.message || data.error)}</div>`;
+                    return;
+                }
+            }
+
+            // Otherwise treat as HTML/text and render inside iframe using srcdoc
+            const text = await res.text();
+            previewFrame.classList.remove('hidden');
+            jsonPreview.classList.add('hidden');
+            try {
+                previewFrame.srcdoc = text;
+                // 立即尝试注入选择器脚本（srcdoc 可直接访问）
+                // injectSelectorScriptToFrame(previewFrame); 
+                // NOTE: Script is now injected by proxy.js server-side. Client-side injection disabled to avoid conflicts.
+            } catch (e) {
+                // Fallback: create blob URL
+                const blob = new Blob([text], { type: 'text/html' });
+                const blobUrl = URL.createObjectURL(blob);
+                previewFrame.src = blobUrl;
+            }
+
+            // 在 iframe 加载完成时再次尝试注入并设置模式
+            previewFrame.onload = function () {
+                // try { injectSelectorScriptToFrame(previewFrame); } catch (e) {}
+                try { setPreviewMode(currentPreviewMode); } catch (e) { }
+            };
+            // 兼容情况，延迟设置一次模式
+            setTimeout(() => setPreviewMode(currentPreviewMode), 500);
+        } catch (e) {
+            previewFrame.classList.add('hidden');
+            jsonPreview.classList.remove('hidden');
+            jsonPreview.innerHTML = `<div class="text-center p-6 text-sm text-red-600">请求预览失败: ${escapeHtml(e.message || String(e))}</div>`;
+        }
+    })();
+};
+
+window.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'selected') {
+        const { mode, selector } = e.data;
+
+        if (mode === 'item') {
+            document.getElementById('itemSelector').value = selector;
+        } else if (mode === 'title') {
+            document.getElementById('titleSelector').value = selector;
+        } else if (mode === 'link') {
+            // 智能处理链接：如果选择器已经是 a 标签，则使用 @href 获取链接
+            let linkSelector = selector;
+            if (selector.toLowerCase().includes('a') && !selector.includes('@href')) {
+                // 如果选择器包含 a 标签，尝试添加 @href 来获取链接属性
+                linkSelector = selector + '/@href';
+            }
+            document.getElementById('linkSelector').value = linkSelector;
+        } else if (mode === 'desc') {
+            document.getElementById('descSelector').value = selector;
+        } else if (mode === 'date') {
+            document.getElementById('dateSelector').value = selector;
+        }
+
+        try { showSelectorCandidates(mode, selector); } catch (err) { console.warn(err); }
+
+        // ADGUARD STYLE: Update Refinement Toolbar
+        const toolbar = document.getElementById('selectionRefineToolbar');
+        if (toolbar) {
+            toolbar.classList.remove('hidden');
+            const depth = e.data.depth || 0;
+            document.getElementById('depthSlider').value = depth;
+            document.getElementById('depthLabel').textContent = '层级: ' + depth;
+        }
+    } else if (e.data && e.data.type === 'selectorCounts') {
+        try { renderCandidateCounts(e.data.counts || {}); } catch (err) { console.warn(err); }
+    } else if (e.data && e.data.type === 'ajax-sniff') {
+        if (!isSniffing) return;
+        const { url, method, type } = e.data.payload;
+        // Simple filter
+        if (!url.startsWith('http')) return;
+
+        const panel = document.getElementById('snifferResults');
+        // Remove placeholder
+        if (panel.textContent.includes('监听中')) panel.innerHTML = '';
+
+        // Check dupes
+        const exists = Array.from(panel.children).some(el => el.dataset.url === url);
+        if (exists) return;
+
+        const div = document.createElement('div');
+        div.className = 'flex items-center gap-2 p-1.5 bg-white border border-gray-200 rounded hover:bg-blue-50 cursor-pointer break-all transition-colors';
+        div.dataset.url = url;
+        div.onclick = () => useSniffedUrl(url);
+        div.innerHTML = `
+            <span class="text-[10px] font-mono px-1 rounded ${method === 'GET' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}">${method}</span>
+            <span class="text-[10px] font-mono px-1 rounded bg-gray-100 text-gray-600">${type}</span>
+            <span class="flex-1 truncate text-xs text-gray-700" title="${url}">${url}</span>
+            <button class="text-blue-600 hover:text-blue-800 text-[10px] whitespace-nowrap px-2 py-0.5 border border-blue-200 bg-white rounded hover:bg-blue-50">使用</button>
+        `;
+        panel.insertBefore(div, panel.firstChild);
+    }
+});
+
+// 生成候选选择器（简单策略）
+function generateCandidatesFrom(selector) {
+    if (!selector) return [];
+    const candidates = [];
+    candidates.push(selector);
+    candidates.push(selector.replace(/:nth-child\(\d+\)/g, ''));
+    const m = selector.match(/([a-z0-9_-]+)\.[a-z0-9_-]+/i);
+    if (m) candidates.push(m[0]);
+    const parts = selector.split('>').map(s => s.trim()).filter(Boolean);
+    if (parts.length > 1) {
+        const last = parts[parts.length - 1];
+        const parent = parts[parts.length - 2];
+        candidates.push(parent + ' > ' + last.replace(/:nth-child\(\d+\)/g, ''));
+    }
+    const clsMatch = selector.match(/\.[a-z0-9_-]+/ig);
+    if (clsMatch && clsMatch.length > 0) {
+        candidates.push(clsMatch.slice(0, 2).join(''));
+    }
+    return Array.from(new Set(candidates)).slice(0, 10);
+}
+
+// 在 preview 工具栏显示候选选择器列表
+function showSelectorCandidates(mode, selector) {
+    const toolbar = document.getElementById('previewToolbar');
+    if (!toolbar) return;
+    let panel = document.getElementById('selectorCandidates');
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'selectorCandidates';
+        panel.style.padding = '6px';
+        panel.style.borderTop = '1px solid #eee';
+        panel.style.display = 'flex';
+        panel.style.flexDirection = 'column';
+        panel.style.gap = '6px';
+        toolbar.appendChild(panel);
+    }
+    panel.innerHTML = '<div class="text-xs text-gray-600">候选选择器（点击“预览”查看效果，或“使用”填入表单）</div>';
+    const candidates = generateCandidatesFrom(selector);
+    candidates.forEach(c => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2';
+        row.innerHTML = `
+            <div class="text-xs text-gray-800 truncate" style="flex:1" title="${escapeHtml(c)}">${escapeHtml(c)}</div>
+            <div class="flex gap-1">
+                <button class="btn-cand-preview text-xs px-2 py-1">预览</button>
+                <button class="btn-cand-use text-xs px-2 py-1">使用</button>
+            </div>
+        `;
+        const previewBtn = row.querySelector('.btn-cand-preview');
+        const useBtn = row.querySelector('.btn-cand-use');
+        previewBtn.onclick = () => applyPreviewSelector(c);
+        useBtn.onclick = () => {
+            if (mode === 'item') document.getElementById('itemSelector').value = c;
+            else if (mode === 'title') document.getElementById('titleSelector').value = c;
+            else if (mode === 'link') document.getElementById('linkSelector').value = c;
+            else if (mode === 'desc') document.getElementById('descSelector').value = c;
+            else if (mode === 'date') document.getElementById('dateSelector').value = c;
+        };
+        panel.appendChild(row);
+    });
+
+    try {
+        const frame = document.getElementById('previewFrame');
+        if (frame && frame.contentWindow) {
+            frame.contentWindow.postMessage({ type: 'countSelectors', candidates: candidates }, '*');
+        }
+    } catch (e) { console.warn(e); }
+}
+
+// 渲染来自 iframe 的计数结果
+function renderCandidateCounts(counts) {
+    const panel = document.getElementById('selectorCandidates');
+    if (!panel) return;
+    const rows = panel.querySelectorAll('div.flex.items-center');
+    rows.forEach(row => {
+        const textDiv = row.querySelector('div');
+        const selector = textDiv && textDiv.title;
+        if (!selector) return;
+        const count = counts[selector] != null ? counts[selector] : counts[decodeURIComponent(selector)];
+        let badge = row.querySelector('.cand-count');
+        if (!badge) {
+            badge = document.createElement('div');
+            badge.className = 'cand-count text-xs text-gray-500';
+            badge.style.minWidth = '48px';
+            badge.style.textAlign = 'right';
+            row.insertBefore(badge, row.querySelector('.flex'));
+        }
+        badge.textContent = (typeof count === 'number' && count >= 0) ? (count + ' 个') : '未知';
+    });
+}
+
+function applyPreviewSelector(selector) {
+    const frame = document.getElementById('previewFrame');
+    if (!frame || !frame.contentWindow) return;
+    frame.contentWindow.postMessage({ type: 'previewClear' }, '*');
+    frame.contentWindow.postMessage({ type: 'previewApply', selector: selector }, '*');
+}
+
+// --- Selection Refinement (AdGuard Style) ---
+window.adjustSelectionDepth = function (delta) {
+    const slider = document.getElementById('depthSlider');
+    let val = parseInt(slider.value) + delta;
+    if (val < parseInt(slider.min)) val = parseInt(slider.min);
+    if (val > parseInt(slider.max)) val = parseInt(slider.max);
+    slider.value = val;
+    onDepthChange(val);
+};
+
+window.onDepthChange = function (val) {
+    document.getElementById('depthLabel').textContent = '层级: ' + val;
+    const frame = document.getElementById('previewFrame');
+    if (frame && frame.contentWindow) {
+        frame.contentWindow.postMessage({ type: 'setDepth', depth: parseInt(val) }, '*');
+    }
+};
+
+// ===== JSON 选择器功能 =====
+
+function renderJsonTree(data, path = '', level = 0, container = null) {
+    const viewer = container || document.getElementById('jsonPreview');
+    if (level === 0) viewer.innerHTML = '';
+
+    const indent = '  '.repeat(level);
+    const isArray = Array.isArray(data);
+    const isObject = typeof data === 'object' && data !== null && !isArray;
+
+    if (isArray) {
+        const arrayPath = path || ''; // Root array path is empty string or just use what is passed
+
+        const el = document.createElement('div');
+        el.className = 'cursor-pointer hover:bg-gray-800 px-1';
+        el.title = '点击选择此数组: ' + (arrayPath || 'root');
+        el.innerHTML = indent + '<span class="text-gray-500">[</span> <span class="text-yellow-400 text-xs">(数组，共' + data.length + '项)</span>';
+
+        // 数组开始括号可点击
+        el.onclick = function (e) {
+            e.stopPropagation();
+            if (currentPreviewMode === 'item') {
+                selectJsonPath(arrayPath);
+            }
+        };
+
+        viewer.appendChild(el);
+
+        // 只显示前3个元素
+        const itemsToShow = Math.min(3, data.length);
+        for (let i = 0; i < itemsToShow; i++) {
+            renderJsonTree(data[i], path + '[' + i + ']', level + 1, viewer);
+        }
+
+        if (data.length > 3) {
+            const moreEl = document.createElement('div');
+            moreEl.className = 'text-gray-500';
+            moreEl.innerHTML = indent + '  <span class="italic">... 还有 ' + (data.length - 3) + ' 项</span>';
+            viewer.appendChild(moreEl);
+        }
+
+        const closeEl = document.createElement('div');
+        closeEl.className = 'cursor-pointer hover:bg-gray-800 px-1';
+        closeEl.title = '点击选择此数组: ' + (arrayPath || 'root');
+        closeEl.innerHTML = indent + '<span class="text-gray-500">]</span>';
+
+        // 闭合括号也可点击
+        closeEl.onclick = function (e) {
+            e.stopPropagation();
+            if (currentPreviewMode === 'item') {
+                selectJsonPath(arrayPath);
+            }
+        };
+
+        viewer.appendChild(closeEl);
+    } else if (isObject) {
+        const el = document.createElement('div');
+        el.innerHTML = indent + '<span class="text-gray-500">{</span>';
+        viewer.appendChild(el);
+
+        for (const key in data) {
+            const value = data[key];
+            const currentPath = path ? path + '.' + key : key;
+            const valueType = Array.isArray(value) ? 'array' : typeof value;
+
+            if (valueType === 'object' || valueType === 'array') {
+                const keyEl = document.createElement('div');
+
+                // 如果是数组，让key也可以点击
+                if (valueType === 'array') {
+                    keyEl.className = 'cursor-pointer hover:bg-gray-800 px-1';
+                    keyEl.title = '点击选择此数组: ' + currentPath;
+                    keyEl.innerHTML = indent + '  <span class="text-blue-400">"' + key + '"</span>: <span class="text-yellow-400 text-xs">[数组]</span>';
+                    keyEl.onclick = function (e) {
+                        e.stopPropagation();
+                        if (currentPreviewMode === 'item') {
+                            selectJsonPath(currentPath);
+                        }
+                    };
+                } else {
+                    keyEl.innerHTML = indent + '  <span class="text-blue-400">"' + key + '"</span>: ';
+                }
+
+                viewer.appendChild(keyEl);
+                renderJsonTree(value, currentPath, level + 1, viewer);
+            } else {
+                const lineEl = document.createElement('div');
+                lineEl.className = 'cursor-pointer hover:bg-gray-800 px-1';
+                lineEl.title = '点击选择: ' + currentPath;
+
+                let displayValue = JSON.stringify(value);
+                if (displayValue.length > 50) displayValue = displayValue.substring(0, 50) + '...';
+
+                let color = 'text-green-400';
+                if (valueType === 'number') color = 'text-yellow-400';
+                else if (valueType === 'boolean') color = 'text-purple-400';
+                else if (value === null) color = 'text-gray-500';
+
+                lineEl.innerHTML = indent + '  <span class="text-blue-400">"' + key + '"</span>: <span class="' + color + '">' + displayValue + '</span>,';
+
+                lineEl.onclick = function (e) {
+                    e.stopPropagation();
+                    if (currentPreviewMode !== 'item') {
+                        selectJsonPath(key);
+                    }
+                };
+
+                viewer.appendChild(lineEl);
+            }
+        }
+
+        const closeEl = document.createElement('div');
+        closeEl.innerHTML = indent + '<span class="text-gray-500">}</span>';
+        viewer.appendChild(closeEl);
+    } else {
+        // 基本类型直接显示
+    }
+}
+
+function selectJsonPath(path) {
+    if (!path) return;
+
+    // 如果是 item 模式，路径应该是 data.items 这种
+    if (currentPreviewMode === 'item') {
+        // JSON模式下，item选择器就是数组的路径
+        // 如果是根数组，可能是空字符串或 "items"
+        document.getElementById('itemSelector').value = path.startsWith('root.') ? path.substring(5) : path;
+    } else {
+        // 字段模式：路径通常相对于 item，比如 "title"
+        // 我们尝试计算相对路径
+        const itemVal = document.getElementById('itemSelector').value;
+        if (itemVal && path.startsWith(itemVal)) {
+            let rel = path.substring(itemVal.length);
+            if (rel.startsWith('.')) rel = rel.substring(1);
+            else if (rel.startsWith('[')) {
+                // items[0].title -> title
+                // Handle array indices
+                const m = rel.match(/^\[\d+\]\.(.*)$/);
+                if (m) rel = m[1];
+            }
+            // 如果 path 是 items[0].title，itemSelector是 items，relative 是 [0].title
+            // 简单处理：只取最后一个点后面的
+            const parts = path.split('.');
+            if (parts.length > 0) rel = parts[parts.length - 1];
+
+            if (currentPreviewMode === 'title') document.getElementById('titleSelector').value = rel;
+            else if (currentPreviewMode === 'link') document.getElementById('linkSelector').value = rel;
+            else if (currentPreviewMode === 'desc') document.getElementById('descSelector').value = rel;
+            else if (currentPreviewMode === 'date') document.getElementById('dateSelector').value = rel;
+        } else {
+            // Fallback: just use full path specific leaf
+            if (currentPreviewMode === 'title') document.getElementById('titleSelector').value = path;
+            else if (currentPreviewMode === 'link') document.getElementById('linkSelector').value = path;
+            else if (currentPreviewMode === 'desc') document.getElementById('descSelector').value = path;
+            else if (currentPreviewMode === 'date') document.getElementById('dateSelector').value = path;
+        }
+    }
+
+    // Highlight UI?
+    alert('已选择 ' + currentPreviewMode + ': ' + path);
+}
+
+// Sniffer Logic
+window.toggleSniffer = function () {
+    isSniffing = !isSniffing;
+    const btn = document.getElementById('snifferBtn');
+    const panel = document.getElementById('snifferPanel');
+    const dot = document.getElementById('snifferDot');
+
+    if (isSniffing) {
+        btn.classList.add('bg-blue-100', 'text-blue-700');
+        panel.classList.remove('hidden');
+        dot.classList.remove('hidden');
+        document.getElementById('snifferResults').innerHTML = '<div class="text-xs text-gray-400 p-2 text-center">监听中... 请在页面中进行操作触发请求</div>';
+
+        // Notify iframe
+        const frame = document.getElementById('previewFrame');
+        if (frame && frame.contentWindow) {
+            frame.contentWindow.postMessage({ type: 'startSniff' }, '*');
+        }
+    } else {
+        btn.classList.remove('bg-blue-100', 'text-blue-700');
+        panel.classList.add('hidden');
+        dot.classList.add('hidden');
+
+        const frame = document.getElementById('previewFrame');
+        if (frame && frame.contentWindow) {
+            frame.contentWindow.postMessage({ type: 'stopSniff' }, '*');
+        }
+    }
+};
+
+window.useSniffedUrl = function (url) {
+    document.getElementById('url').value = url;
+    document.getElementById('type').value = 'json'; // Assume JSON API
+    updatePlaceholder();
+    toggleSniffer(); // Close sniffer
+    loadPreview();
+};

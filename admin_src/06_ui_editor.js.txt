@@ -1,0 +1,336 @@
+// --- Edit Route Override ---
+window.editRoute = async function (key) {
+    let config = cachedRoutes[key];
+
+    // If missing from cache (e.g. paginated), fetch it
+    if (!config) {
+        const btn = document.querySelector(`button[onclick='editRoute("${key}")']`);
+        const originalText = btn ? btn.textContent : '';
+        if (btn) { btn.textContent = '...'; btn.disabled = true; }
+
+        try {
+            const res = await authFetch(API_BASE + `?key=${encodeURIComponent(key)}`);
+            const data = await res.json();
+            if (data[key]) {
+                config = data[key];
+                // Optionally update cache to avoid re-fetch?
+                // cachedRoutes[key] = config; 
+            }
+        } catch (e) {
+            alert('Fetch failed: ' + e.message);
+        } finally {
+            if (btn) { btn.textContent = originalText; btn.disabled = false; }
+        }
+    }
+
+    if (!config) {
+        alert('无法加载路由配置');
+        return;
+    }
+
+    // Fill Form
+    document.getElementById('routeKey').value = key;
+    document.getElementById('url').value = config.url || '';
+    document.getElementById('type').value = config.type || 'html';
+    document.getElementById('encoding').value = config.encoding || 'auto';
+    document.getElementById('maxItems').value = config.maxItems || 20;
+    document.getElementById('channelTitle').value = config.channelTitle || '';
+
+    // Advanced
+    document.getElementById('reverseOrder').checked = !!config.reverseOrder;
+    document.getElementById('fullText').checked = !!config.fullText;
+    document.getElementById('usePuppeteer').checked = !!config.usePuppeteer;
+
+    if (config.fullText) {
+        document.getElementById('fullTextConfig').classList.remove('hidden');
+        document.getElementById('fullTextSelector').value = config.fullTextSelector || '';
+    } else {
+        document.getElementById('fullTextConfig').classList.add('hidden');
+    }
+
+    // Selectors
+    document.getElementById('itemSelector').value = config.itemSelector || '';
+    document.getElementById('titleSelector').value = config.titleSelector || '';
+    document.getElementById('linkSelector').value = config.linkSelector || '';
+    document.getElementById('linkBaseUrl').value = config.linkBaseUrl || '';
+    document.getElementById('descSelector').value = config.descSelector || '';
+    document.getElementById('dateSelector').value = config.dateSelector || '';
+
+    // Timestamp Logic
+    if (config.timestampMode) {
+        document.getElementById('timestampMode').checked = true;
+        document.getElementById('timestampConfig').classList.remove('hidden');
+        document.getElementById('timestampUnit').value = config.timestampUnit || 'ms';
+    } else {
+        document.getElementById('timestampMode').checked = false;
+        document.getElementById('timestampConfig').classList.add('hidden');
+    }
+
+    // Link Join Logic
+    if (config.linkNeedJoin) {
+        document.getElementById('linkNeedJoin').checked = true;
+        document.getElementById('linkBaseUrl').classList.remove('hidden');
+    } else {
+        document.getElementById('linkNeedJoin').checked = false;
+        document.getElementById('linkBaseUrl').classList.add('hidden');
+    }
+
+    // Puppeteer Wait Selector
+    document.getElementById('puppeteerWaitSelector').value = config.puppeteerWaitSelector || '';
+    if (config.usePuppeteer) {
+        document.getElementById('puppeteerConfig').classList.remove('hidden');
+    } else {
+        document.getElementById('puppeteerConfig').classList.add('hidden');
+    }
+
+    // --- Load Filters ---
+    const filterContainer = document.getElementById('filterContainer');
+    if (filterContainer) {
+        filterContainer.innerHTML = ''; // Clear
+        if (config.filters && Array.isArray(config.filters)) {
+            config.filters.forEach(f => {
+                if (typeof addFilterRow === 'function') addFilterRow(f);
+            });
+        }
+    }
+
+    // --- Load Translation ---
+    const transConfig = config.translation || {};
+    const transEnabled = document.getElementById('routeTransEnabled');
+    const transTargetLang = document.getElementById('routeTransTargetLang');
+    const transScope = document.getElementById('routeTransScope');
+    const transFormat = document.getElementById('routeTransFormat');
+    if (transEnabled) transEnabled.checked = !!transConfig.enabled;
+    if (transTargetLang) transTargetLang.value = transConfig.targetLang || 'zh-CN';
+    if (transScope) transScope.value = transConfig.scope || 'both';
+    if (transFormat) transFormat.value = transConfig.format || 'append';
+
+    updatePlaceholder(); // 更新占位符
+
+    // Switch to Editor
+    showPage('editor');
+    // Smooth scroll to top
+    document.getElementById('page-editor').scrollTop = 0;
+
+    // Trigger preview?
+    // testRule();
+
+    // Reset Preview Mode
+    document.getElementById('previewTitle').textContent = '可视化预览';
+    document.getElementById('visualPreview').classList.remove('hidden');
+    document.getElementById('testResult').classList.add('hidden');
+    if (typeof loadPreview === 'function') loadPreview();
+}
+
+function getFormData() {
+    const rawUrl = document.getElementById('url').value;
+    return {
+        key: document.getElementById('routeKey').value,
+        config: {
+            url: rawUrl ? normalizeUrl(rawUrl) : rawUrl,
+            type: document.getElementById('type').value,
+            itemSelector: document.getElementById('itemSelector').value,
+            titleSelector: document.getElementById('titleSelector').value,
+            linkSelector: document.getElementById('linkSelector').value,
+            linkNeedJoin: document.getElementById('linkNeedJoin').checked,
+            linkBaseUrl: document.getElementById('linkBaseUrl').value,
+            descSelector: document.getElementById('descSelector').value,
+            dateSelector: document.getElementById('dateSelector').value,
+            channelTitle: document.getElementById('channelTitle').value,
+            maxItems: parseInt(document.getElementById('maxItems').value) || 20,
+            encoding: document.getElementById('encoding').value,
+            fullText: document.getElementById('fullText').checked,
+            fullTextSelector: document.getElementById('fullTextSelector').value,
+            timestampMode: document.getElementById('timestampMode').checked,
+            timestampUnit: document.getElementById('timestampUnit').value,
+            reverseOrder: document.getElementById('reverseOrder').checked,
+            usePuppeteer: document.getElementById('usePuppeteer').checked,
+
+            puppeteerWaitSelector: document.getElementById('puppeteerWaitSelector').value,
+            filters: typeof getFiltersFromUI === 'function' ? getFiltersFromUI() : [],
+            translation: {
+                enabled: document.getElementById('routeTransEnabled') ? document.getElementById('routeTransEnabled').checked : false,
+                targetLang: document.getElementById('routeTransTargetLang') ? document.getElementById('routeTransTargetLang').value : 'zh-CN',
+                scope: document.getElementById('routeTransScope') ? document.getElementById('routeTransScope').value : 'both',
+                format: document.getElementById('routeTransFormat') ? document.getElementById('routeTransFormat').value : 'append'
+            }
+        }
+    };
+}
+
+window.testRule = async function () {
+    const data = getFormData();
+
+    if (!data.config.url) {
+        alert('请填写 URL');
+        return;
+    }
+
+    if (!data.config.itemSelector) {
+        // RSS 类型如果没填选择器，后端会自动处理，所以这里可以放行
+        if (data.config.type === 'rss') {
+            // Do nothing, allow empty selector
+        } else {
+            alert('请填写列表选择器');
+            return;
+        }
+    }
+
+    // 切换到测试结果视图
+    document.getElementById('previewTitle').textContent = '测试结果';
+    document.getElementById('visualPreview').classList.add('hidden');
+    document.getElementById('testResult').classList.remove('hidden');
+
+    const testResult = document.getElementById('testResult');
+    testResult.innerHTML = '<div class="flex justify-center py-10"><div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>';
+
+    try {
+        // Inject key into config for preview so fallbacks work
+        const previewConfig = { ...data.config, key: data.key };
+        const res = await authFetch(PREVIEW_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(previewConfig)
+        });
+
+        // Check for JSON response
+        const contentType = res.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await res.text();
+            // Try to extract error message from HTML if possible, or just show start of text
+            let errorMsg = 'Server returned non-JSON response';
+            if (text.includes('<title>')) {
+                const match = text.match(/<title>(.*?)<\/title>/);
+                if (match) errorMsg += ': ' + match[1];
+            }
+            throw new Error(errorMsg + ' (Check console for details)');
+        }
+
+        const result = await res.json();
+
+        if (result.isError) {
+            testResult.innerHTML = `<div class="bg-red-50 p-4 rounded text-red-700 text-sm">${result.message || '未知错误'}</div>`;
+            return;
+        }
+
+        if (!result.items || result.items.length === 0) {
+            testResult.innerHTML = '<div class="text-center text-gray-500 py-10">未找到任何条目，请检查选择器。</div>';
+            return;
+        }
+
+        const maxItems = data.config.maxItems || 20;
+        const actualCount = result.items.length;
+        const headerHtml = `
+            <div class="bg-green-50 border border-green-200 rounded-md p-3 mb-4 text-sm">
+                <span class="text-green-800 font-medium">✓ 成功获取 <strong>${actualCount}</strong> 条数据</span>
+                <span class="text-gray-600 ml-2">(配置: ${maxItems} 条)</span>
+            </div>
+        `;
+
+        testResult.innerHTML = headerHtml + result.items.map(item => {
+            const desc = item.description || '';
+            const descLength = desc.length;
+            // Strip HTML tags for preview to prevent layout breakage due to unclosed tags in truncated text
+            const plainText = desc.replace(/<[^>]+>/g, '');
+            const descPreview = plainText.length > 300 ? plainText.substring(0, 300) + '...' : plainText;
+
+            return `
+                <div class="border-l-4 border-blue-500 bg-gray-50 p-3 rounded shadow-sm text-sm mb-3">
+                    <h4 class="font-bold text-gray-900 mb-1"><a href="${item.link || '#'}" target="_blank" class="hover:underline text-blue-600">${item.title || '无标题'}</a></h4>
+                    <div class="text-xs text-gray-500 mb-2">${item.pubDate || '无日期'} ${descLength > 0 ? `| 内容长度: ${descLength} 字符` : ''}</div>
+                    <div class="text-gray-700 text-sm prose prose-sm max-w-none" style="max-height: 300px; overflow-y: auto; white-space: pre-wrap;">
+                        ${descPreview || '<span class="text-gray-400">无内容</span>'}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        // Display debug logs at bottom of left panel if available
+        if (result.logs && result.logs.length > 0) {
+            const debugSection = document.getElementById('debugLogs');
+            if (debugSection) {
+                debugSection.innerHTML = `
+                    <div class="text-xs font-medium text-gray-700 mb-2">📋 调试日志:</div>
+                    <div class="space-y-1 text-xs font-mono text-gray-600">
+                        ${result.logs.map(log => `<div>${log}</div>`).join('')}
+                    </div>
+                `;
+                debugSection.classList.remove('hidden');
+            }
+        }
+
+    } catch (e) {
+        testResult.innerHTML = `<div class="bg-red-50 p-4 rounded text-red-700 text-sm">请求失败: ${e.message}</div>`;
+    }
+};
+
+window.updatePlaceholder = function () {
+    const type = document.getElementById('type').value;
+    const itemInput = document.getElementById('itemSelector');
+    const titleInput = document.getElementById('titleSelector');
+    const linkInput = document.getElementById('linkSelector');
+    const descInput = document.getElementById('descSelector');
+    const dateInput = document.getElementById('dateSelector');
+
+    const selectorSection = document.getElementById('section-selectors');
+    if (false) {
+        // placeholder - telegram support removed
+    } else {
+        selectorSection.style.display = 'block';
+
+        // RSS 类型不需要强制必填列表选择器
+        if (type === 'rss') {
+            itemInput.removeAttribute('required');
+        } else {
+            itemInput.setAttribute('required', 'required');
+        }
+
+        if (type === 'xpath') {
+            itemInput.placeholder = '//div[@class="list-item"]';
+            titleInput.placeholder = './/h2/a';
+            linkInput.placeholder = './/a/@href';
+            descInput.placeholder = './/div[@class="desc"]';
+            dateInput.placeholder = './/span[@class="date"]';
+        } else if (type === 'json' || type === 'rss') {
+            itemInput.placeholder = 'data.items (如果整个响应是数组可留空)';
+            titleInput.placeholder = 'title 或 模板:综合分位:{indexValue}';
+            linkInput.placeholder = 'url 或 模板:https://site.com/{id}';
+            descInput.placeholder = 'content 或 模板:详情:{description}';
+            dateInput.placeholder = 'publishTime (或 created_at)';
+        } else {
+            itemInput.placeholder = '.post-item';
+            titleInput.placeholder = 'h2 a';
+            linkInput.placeholder = 'a';
+            descInput.placeholder = '.summary';
+            dateInput.placeholder = '.date';
+        }
+    }
+};
+
+async function saveCurrentRoute(e) {
+    if (e) e.preventDefault();
+    const data = getFormData();
+
+    document.getElementById('globalLoading').classList.remove('hidden');
+
+    try {
+        await authFetch(API_BASE, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        alert('✓ 保存成功！缓存已自动清除，立即生效。');
+        loadRoutes(); // Refresh cache
+        showPage('list'); // 跳转到列表页面
+        // 隐藏调试日志
+        const debugSection = document.getElementById('debugLogs');
+        if (debugSection) {
+            debugSection.classList.add('hidden');
+            debugSection.innerHTML = '';
+        }
+    } catch (e) {
+        alert('保存失败: ' + e.message);
+    } finally {
+        document.getElementById('globalLoading').classList.add('hidden');
+    }
+}

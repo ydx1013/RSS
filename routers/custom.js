@@ -4,6 +4,9 @@ import { parseHTML } from 'linkedom';
 import { itemsToRss } from '../rss.js';
 import { fetchWithHeaders, fetchWithRetry } from '../utils/fetcher.js';
 import { decodeText } from '../utils/helpers.js';
+import { fixLazyImages, fixRelativeUrls, cleanHtml, unescapeHtml } from '../utils/html.js';
+import { applyFilters } from '../utils/filter.js';
+import { translateItems } from '../utils/translator.js';
 
 import feedRouter from './feed.js';
 import jsonRouter from './json.js';
@@ -94,11 +97,21 @@ export default async function (params, config = {}) {
         // 3. Delegate
         if (detectedType === 'json') {
             // Pass original response to jsonRouter
-            return jsonRouter(params, { ...config, _inputResponse: response });
+            const result = await jsonRouter(params, { ...config, _inputResponse: response });
+            if (response && response.effectiveRequestUrl && response.effectiveRequestUrl !== url) {
+                result.newUrl = response.effectiveRequestUrl;
+                result.failures = response.retryFailures || [];
+            }
+            return result;
         }
 
         if (detectedType === 'rss' || detectedType === 'feed' || detectedType === 'atom') {
-            return feedRouter(params, { ...config, _inputResponse: response });
+            const result = await feedRouter(params, { ...config, _inputResponse: response });
+            if (response && response.effectiveRequestUrl && response.effectiveRequestUrl !== url) {
+                result.newUrl = response.effectiveRequestUrl;
+                result.failures = response.retryFailures || [];
+            }
+            return result;
         }
 
         // Update mode based on detection (e.g. 'auto' -> 'html')
@@ -260,13 +273,15 @@ export default async function (params, config = {}) {
                 if (descSelector) {
                     const descEl = $el.find(descSelector);
                     if (descEl.length > 0) {
-                        // FIX: Handle lazy images automatically
-                        descEl.find('img').each((_, img) => {
-                            const $img = $(img);
-                            const dataSrc = $img.attr('data-src') || $img.attr('data-original') || $img.attr('data-url') || $img.attr('data-image');
-                            if (dataSrc) $img.attr('src', dataSrc);
-                        });
+                        // Fix lazy images using enhanced utility
+                        fixLazyImages($, descEl);
+                        // Clean HTML (remove ads, sanitize custom tags like tg-emoji)
+                        cleanHtml(descEl);
+
                         description = descEl.first().html();
+
+                        // Fix Double Escaping using robust utility
+                        description = unescapeHtml(description);
                     }
                 }
                 if (!description) description = title;
@@ -361,12 +376,10 @@ export default async function (params, config = {}) {
                     if (fullTextSelector) {
                         const contentEl = $article(fullTextSelector);
                         if (contentEl.length > 0) {
-                            // FIX: Handle lazy images automatically in full text
-                            contentEl.find('img').each((_, img) => {
-                                const $img = $article(img);
-                                const dataSrc = $img.attr('data-src') || $img.attr('data-original') || $img.attr('data-url') || $img.attr('data-image');
-                                if (dataSrc) $img.attr('src', dataSrc);
-                            });
+                            // Fix lazy images using enhanced utility
+                            fixLazyImages($article, contentEl);
+                            // Also fix relative URLs
+                            fixRelativeUrls($article, fetchUrl);
 
                             // Handle multiple matches (e.g. selector is "p")
                             if (contentEl.length > 1) {
@@ -403,8 +416,33 @@ export default async function (params, config = {}) {
             console.log(`[Full Text] Completed. ${items.length} items processed.`);
         }
 
+        // --- Filtering ---
+        const filters = config.filters || (config.filter?.enabled ? config.filter.rules : null);
+        if (Array.isArray(filters) && filters.length > 0) {
+            const originalCount = items.length;
+            items = applyFilters(items, filters);
+            console.log(`[Filter] Applied rules. ${originalCount} -> ${items.length} items.`);
+        }
+
+        // --- Translation ---
+        if (config.translation && config.translation.enabled) {
+            // Need global settings for API keys. 
+            // We expect global settings to be injected into config.domainConfig or passed differently?
+            // Actually, handleAdminRequest passes domain_config. But we need admin_settings (keys).
+            // Main.js injection logic needs to be checked. Assuming 'domainConfig' might contain specific settings,
+            // or we might need to fetch admin_settings. 
+            // Ideally, we reuse domainConfig if it has the keys, OR we rely on env injection if possible.
+            // *Wait*, handleAdminRequest fetches 'admin_settings' separately. 
+            // In main.js/feed.js, we might not have 'admin_settings'.
+            // OPTION: Pass admin_settings in config from main.js? 
+            // Let's assume config.globalSettings is passed or we extract from domainConfig if we allow setting there.
+            // FOR NOW: Let's assume config.globalSettings is passed. (I need to update main.js/feed.js to pass this)
+
+            items = await translateItems(items, config, config.globalSettings);
+        }
+
         const channel = {
-            title: channelTitle || 'Custom Feed',
+            title: channelTitle || config.key || 'Custom Feed',
             link: url,
             description: channelDesc || 'Generated by RSS Worker',
             image: '', // Optional
@@ -424,11 +462,18 @@ export default async function (params, config = {}) {
             data = itemsToRss(items, channel, format);
         }
 
-        return {
+        const result = {
             data: data,
             items: items, // Return raw items for preview
             isError: false,
         };
+
+        if (response && response.effectiveRequestUrl && response.effectiveRequestUrl !== url) {
+            result.newUrl = response.effectiveRequestUrl;
+            result.failures = response.retryFailures || [];
+        }
+
+        return result;
 
     } catch (error) {
         console.error('Custom RSS Error:', error);

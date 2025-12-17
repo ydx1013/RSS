@@ -1,0 +1,30 @@
+const API_BASE = '/api/routes';
+const PREVIEW_API = '/api/preview';
+const PROXY_API = '/api/visual-proxy';
+const PROXY_JSON_API = '/api/proxy';
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// Ensure URLs have a scheme. If none provided, default to https://
+function normalizeUrl(u) {
+    if (!u) return u;
+    const s = String(u).trim();
+    if (!s) return s;
+    if (/^https?:\/\//i.test(s)) return s;
+    if (/^\/\//.test(s)) return 'https:' + s;
+    return 'https://' + s;
+}
+
+function timeAgo(timestamp) {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return '刚刚';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + '分钟前';
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return hours + '小时前';
+    const days = Math.floor(hours / 24);
+    return days + '天前';
+}

@@ -1,6 +1,8 @@
 import { itemsToRss } from '../rss.js';
 import { fetchWithHeaders } from '../utils/fetcher.js';
 import { getVal } from '../utils/helpers.js';
+import { applyFilters } from '../utils/filter.js';
+import { translateItems } from '../utils/translator.js';
 
 export default async function (params, config) {
     const { format = 'rss' } = params;
@@ -128,6 +130,17 @@ export default async function (params, config) {
                     pubDate: pubDate
                 };
             });
+        }
+
+        // --- Filtering ---
+        const filters = config.filters || (config.filter?.enabled ? config.filter.rules : null);
+        if (Array.isArray(filters) && filters.length > 0) {
+            items = applyFilters(items, filters);
+        }
+
+        // --- Translation ---
+        if (config.translation && config.translation.enabled) {
+            items = await translateItems(items, config, config.globalSettings);
         }
 
         const channel = {
